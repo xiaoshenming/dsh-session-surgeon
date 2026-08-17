@@ -4,6 +4,10 @@
 
 官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
 
+GUI（重启 `dsh web` 后）：
+- 左侧「会话医生」：扫描 / 检查 / 复制 ID / 预览修复 / 应用修复 / 预览压缩 / 导出 JSONL
+- 会话 ⋯ 菜单：复制会话 ID / 检查会话 / 预览修复
+
 ```bash
 node bin/dsh-session-surgeon.mjs scan
 node bin/dsh-session-surgeon.mjs inspect <id>

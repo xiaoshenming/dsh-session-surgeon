@@ -2,6 +2,7 @@ import { defaultSessionRoot, scanAll, scanHeader } from "../src/scan.mjs";
 import { inspectById, pickSession } from "../src/inspect.mjs";
 import { repairFile } from "../src/repair.mjs";
 import { listSessionFiles } from "../src/find.mjs";
+import { makeRoutes } from "./routes.mjs";
 
 export const name = "session-surgeon";
 export const inject = ["tools"];
@@ -112,7 +113,21 @@ async function registerTools(ctx) {
   );
 }
 
+function registerRoutes(ctx) {
+  if (typeof ctx?.webServer?.register !== "function") return;
+  const routes = makeRoutes();
+  const run = () => {
+    const disposers = routes.map((route) => ctx.webServer.register(route));
+    return () => {
+      for (const dispose of disposers) if (typeof dispose === "function") dispose();
+    };
+  };
+  if (typeof ctx.effect === "function") ctx.effect(run, "session-surgeon: routes");
+  else run();
+}
+
 export function apply(ctx) {
+  registerRoutes(ctx);
   return registerTools(ctx);
 }
 

@@ -20,7 +20,7 @@
   ],
   "exports": {
     ".": "./plugin/index.mjs",
-    "./client": "./plugin/client.mjs",
+    "./client": "./plugin/client.js",
     "./package.json": "./package.json"
   },
   "dsh": {

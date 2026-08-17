@@ -20,6 +20,11 @@ Cost meters / memory / marketplaces are saturated. Almost nobody repairs the JSO
 
 ## Install
 
+After `dsh web` restart:
+
+- Sidebar **会话医生 / Session surgeon**: scan, inspect, copy id, dry-run repair, apply repair, compact preview, export JSONL
+- Session ⋯ menu: copy session id / inspect / dry-run repair
+
 CLI, no `dsh web` required:
 
 ```bash

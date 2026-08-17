@@ -153,7 +153,7 @@ dsh-session-surgeon index [root] [--format json|text]
 形态对齐 `@linxin666/dsh-live-stats` / `dsh-ssh`：
 - `package.json` 增加：
   ```json
-  "exports": { ".": "./plugin/index.mjs", "./client": "./plugin/client.mjs", "./package.json": "./package.json" },
+  "exports": { ".": "./plugin/index.mjs", "./client": "./plugin/client.js", "./package.json": "./package.json" },
   "dsh": { "bundle": { "patch": "./cordis.patch.yml" }, "client": { "inject": ["@deepseek-ai/dsh-client-runtime","@deepseek-ai/dsh-client-ui-settings"], "platform": "web" } }
   ```
 - `cordis.patch.yml`：
@@ -165,8 +165,9 @@ dsh-session-surgeon index [root] [--format json|text]
 - host：`defineTool` 注册 `session_scan` / `session_inspect` / `session_repair`（repair 默认 dryRun=true，apply 必须显式）
 - `@deepseek-ai/dsh-tools` 只放 peerDependencies
 - 若 host 环境没有 defineTool（单元测试），plugin 仍应能被 import（把 defineTool 包在 try 或延迟注册）
-- client：settings.plugins.tab 只放 CLI / 工具说明（v0.1 不拉实时健康列表）；**不要**抢 aionui details 右栏，不要 DOM 补丁
-- 插件不监听端口、不改 profile、不访问网络
+- host 在 `ctx.webServer` 可用时注册 `/api/session-surgeon/{scan,inspect,repair,compact,export}`（仅 loopback）
+- client：侧栏「会话医生」面板承载 scan/inspect/repair/compact/export；会话 ⋯ 菜单注入复制 ID / 检查 / 预览修复。不抢 aionui details 右栏。
+- 插件不监听端口、不改 profile、不访问外网
 
 ### 测试黄金样例
 
