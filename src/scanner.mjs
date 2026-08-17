@@ -68,7 +68,9 @@ export class SessionLogScanner {
       this.issues.push(next);
       return;
     }
-    if (parsed && typeof parsed.type === "string" && parsed.seq0 != null) this.packedRows += 1;
+    if (parsed && (parsed.type === "text-chunks" || parsed.type === "reasoning-chunks" || parsed.type === "tool-call-chunks")) {
+      this.packedRows += 1;
+    }
     if (this.issue !== null) {
       if (decoded.some((event) => event.type === "turn/end")) {
         if (this.issue.code === "seq-gap-tail") this.issue.code = "seq-gap-committed";

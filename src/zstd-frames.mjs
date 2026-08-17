@@ -150,27 +150,3 @@ export function decodeFrames(buf) {
   return out;
 }
 
-/**
- * Split recovered UTF-8 into non-empty JSONL lines.
- * Incomplete trailing fragments (no newline) are kept if non-empty;
- * callers that need committed records should drop the last line when
- * the text does not end with `\n`.
- * @param {string} text
- */
-export function linesFromText(text) {
-  const lines = [];
-  for (const line of String(text).split("\n")) {
-    if (line) lines.push(line);
-  }
-  return lines;
-}
-
-/** Collect non-empty lines from successfully decoded frames, including torn text. */
-export function linesFromFrames(frames) {
-  const lines = [];
-  for (const frame of frames) {
-    if (!frame.ok || frame.text == null) continue;
-    for (const line of linesFromText(frame.text)) lines.push(line);
-  }
-  return lines;
-}

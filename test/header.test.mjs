@@ -49,3 +49,18 @@ test("retired policy fields are refused", () => {
 test("rejects createdAt -0", () => {
   assert.equal(isHeaderLine({ ...good, createdAt: -0 }), false);
 });
+
+test("parseHeaderRecord requires exactly one newline-terminated record", () => {
+  const line = JSON.stringify(good);
+  assert.throws(() => parseHeaderRecord(line), /empty or header-less/);
+  assert.throws(() => parseHeaderRecord(line + "\nextra\n"), /empty or header-less/);
+  assert.throws(() => parseHeaderRecord("{\n"), /not valid JSON/);
+  const rec = parseHeaderRecord(Buffer.from(line + "\n"));
+  assert.equal(rec.id, "session-test");
+});
+
+test("classifyHeader uses the official not-header message", () => {
+  const classified = classifyHeader({ type: "nope" });
+  assert.equal(classified.code, "not-header");
+  assert.match(classified.error, /corrupt session log: first line is not a session header/);
+});

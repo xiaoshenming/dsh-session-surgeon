@@ -140,7 +140,7 @@ function classifyParsed(parsed) {
     }
   }
   if (typeof parsed !== "object" || parsed === null || parsed.type !== "session") {
-    return { ok: false, code: "not-header", error: "first line is not a session header" };
+    return { ok: false, code: "not-header", error: NOT_HEADER_ERROR };
   }
   if (!isHeaderLine(parsed)) {
     return { ok: false, code: "header-parse-error", error: NOT_HEADER_ERROR };
