@@ -6,6 +6,10 @@ import { applyCompact } from "../src/compact.mjs";
 import { decodeSessionBuffer } from "../src/decode.mjs";
 import { exportSession } from "../src/export.mjs";
 import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const UI_CSS = join(dirname(fileURLToPath(import.meta.url)), "ui.css");
 
 export const API_PREFIX = "/api/session-surgeon";
 
@@ -136,6 +140,19 @@ export function makeRoutes() {
           redact: q.get("redact") !== "0",
           text: exported.text,
         });
+      }),
+    },
+    {
+      kind: "exact",
+      path: `${API_PREFIX}/ui.css`,
+      handler: wrap(async (req, res) => {
+        if (!isLoopback(req)) return writeJson(res, 403, { error: "loopback-only" });
+        if (req.method !== "GET") return writeJson(res, 405, { error: "GET only" });
+        const css = await readFile(UI_CSS, "utf8");
+        res.statusCode = 200;
+        res.setHeader("content-type", "text/css; charset=utf-8");
+        res.setHeader("cache-control", "no-store");
+        res.end(css);
       }),
     },
   ];

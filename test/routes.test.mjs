@@ -51,7 +51,7 @@ async function stagedRoot() {
   return { root, id: "session-synthetic-healthy-packed" };
 }
 
-test("makeRoutes exposes the five surgeon endpoints", () => {
+test("makeRoutes exposes the surgeon endpoints", () => {
   const paths = makeRoutes().map((r) => r.path);
   assert.deepEqual(paths, [
     API_PREFIX + "/scan",
@@ -59,6 +59,7 @@ test("makeRoutes exposes the five surgeon endpoints", () => {
     API_PREFIX + "/repair",
     API_PREFIX + "/compact",
     API_PREFIX + "/export",
+    API_PREFIX + "/ui.css",
   ]);
 });
 
