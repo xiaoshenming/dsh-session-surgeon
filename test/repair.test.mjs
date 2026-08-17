@@ -81,6 +81,18 @@ test("mid-turn committed gap truncates to the previous turn/end, not an open tur
   assert.ok(!after.events.some((e) => e.type === "turn/start" && e.data?.turn === 2));
 });
 
+test("repair refuses a failed middle frame and does not write", async () => {
+  const dest = await copyFixture("healthy-packed.session.jsonl.zstd");
+  const before = await readFile(dest);
+  const decoded = decodeSessionBuffer(before);
+  decoded.failedFrames = 1;
+  const { applyRepair } = await import("../src/repair.mjs");
+  const result = await applyRepair({ file: dest, decoded, dryRun: false });
+  assert.equal(result.wrote, false);
+  assert.match(result.plan.refuse ?? "", /middle frame/);
+  assert.deepEqual(await readFile(dest), before);
+});
+
 test("apply writes a .bak.* sibling", async () => {
   const dest = await copyFixture("torn-tail.session.jsonl.zstd");
   await repairFile(dest, { dryRun: false });
