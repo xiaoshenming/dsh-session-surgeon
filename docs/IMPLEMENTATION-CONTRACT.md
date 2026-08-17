@@ -179,7 +179,10 @@ dsh-session-surgeon index [root] [--format json|text]
 | orphan-tmp | scan 列出来，repair 不把它当正本 |
 | healthy packed | inspect 展开后 seq 连续，dry-run 0 处必须修改 |
 
-对照：同一事件数组上，我们的 closer 与官方 `interruptedTurnClosers` 逐条 type/seq/data.reason 相等（官方包可动态 import 作对照，失败则跳过对照、不 fail CI）。
+对照（官方包可动态 import，失败则 skip、不 fail CI）：
+- closer 与官方 `interruptedTurnClosers` 逐条 type/seq/data.reason 相等
+- `packChunkRuns` / `decodeStorageRecord` 与官方 chunk-rows 对同一事件数组深相等
+- `KNOWN_SESSION_EVENT_TYPES` 与官方 catalog 集合相等
 
 ### package.json scripts
 
