@@ -113,6 +113,20 @@ test("tail gap without a later turn/end is seq-gap-tail, not committed", async (
   assert.ok(!plan.actions.some((a) => a.code === "seq-gap-committed"));
 });
 
+test("known event types match official catalog when present", async (t) => {
+  const officialPath =
+    "/home/ming/.nvm/versions/node/v22.19.0/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-session/lib/types/known-event-types.js";
+  let official;
+  try {
+    official = await import(officialPath);
+  } catch {
+    t.skip("official known-event-types not resolvable");
+    return;
+  }
+  const { KNOWN_SESSION_EVENT_TYPES } = await import("../src/known-types.mjs");
+  assert.deepEqual([...KNOWN_SESSION_EVENT_TYPES].sort(), [...official.KNOWN_SESSION_EVENT_TYPES].sort());
+});
+
 test("unknown-type is kept", async () => {
   const events = [
     ev("turn/start", 0, { turn: 1 }),
