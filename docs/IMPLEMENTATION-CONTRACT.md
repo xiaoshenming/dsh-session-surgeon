@@ -90,9 +90,9 @@
 
 对齐 `SessionLogScanner.consumeEventLine`：
 1. JSON.parse / decodeStorageRecord 失败 → issue `unparsable-line`
-2. 展开后 `event.seq !== events.length` → issue `seq-gap-committed`，回滚本行已 push 的事件
-3. issue 之后若本行或后续行出现 `turn/end` → committed 缺陷，记录并停止接受
-4. issue 之后再无 `turn/end` → 只保留 committed prefix，尾巴当 torn
+2. 展开后 `event.seq !== events.length`：回滚本行已 push 的事件。本行或后续行出现 `turn/end` → issue `seq-gap-committed`；否则 issue `seq-gap-tail`
+3. issue 之后若出现 `turn/end` → committed 缺陷，记录并停止接受（tail 升级为 committed）
+4. issue 之后再无 `turn/end` → 只保留 committed prefix，尾巴当脏尾
 5. 未知 type（不在 KNOWN 且无 `ignorable`）→ 标 `unknown-type`，**保留**
 
 ### Closers
@@ -122,8 +122,8 @@
 ### Compact
 
 - `--keep-last-turns N`（N≥1）
-- 丢掉更早 turn 的原文，插入一条 `compaction/summary`（若 type 未知则用带 `ignorable:true` 的自定义摘要事件，且 **重排后 seq 连续**）
-- 更稳妥：前面 turn 整段删除，从保留的第一个 turn/start 起重排 seq 从 0，header.seedLength 如需要可设
+- v0.1 走更稳妥路径：前面完整 turn 整段删除，从保留的第一个 turn/start 起重排 seq 从 0，`header.seedLength = 0`。不插入 `compaction/summary`
+- 中间坏帧 / header 非 header-ok 时 refuse
 - 产出必须是合法独立 session 文件（自己的 header + 连续 seq）
 
 ### Export
@@ -173,6 +173,7 @@ dsh-session-surgeon index [root] [--format json|text]
 |---|---|
 | torn-tail | inspect 报 torn-tail；repair --apply 后 decode seq 连续且有合成 turn/end |
 | seq-gap-committed | 停在 gap 前最后一个 turn/end |
+| seq-gap-tail | 保留空洞前连续前缀，不截到上一 turn/end |
 | lone-surrogate | 不再含孤立代理；seq 不变 |
 | orphan-tmp | scan 列出来，repair 不把它当正本 |
 | healthy packed | inspect 展开后 seq 连续，dry-run 0 处必须修改 |
