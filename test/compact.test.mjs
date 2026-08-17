@@ -53,6 +53,18 @@ test("keep 1 drops the first turn and renumbers from 0", async () => {
   assert.equal(plan.events.at(-1).type, "turn/end");
 });
 
+test("compact refuses a decode with failed middle frames", () => {
+  const decoded = {
+    header,
+    headerClass: { ok: true, code: "header-ok", header },
+    events: twoTurns(),
+    failedFrames: 1,
+  };
+  const plan = planCompact(decoded, { keepLastTurns: 1 });
+  assert.equal(plan.mustWrite, false);
+  assert.match(plan.refuse ?? "", /middle frame/);
+});
+
 test("apply compact writes a legal session", async () => {
   const dir = await mkdtemp(join(tmpdir(), "surgeon-compact-"));
   const file = join(dir, "session.jsonl.zstd");
