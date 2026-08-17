@@ -10,6 +10,14 @@ test("redactString strips keys, pem, and home paths", () => {
     /REDACTED_PEM/,
   );
   assert.equal(redactString("file /home/ming/secret.txt"), "file ~/secret.txt");
+  assert.match(
+    redactString("-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----"),
+    /REDACTED_PEM/,
+  );
+  assert.match(
+    redactString("-----BEGIN ENCRYPTED PRIVATE KEY-----\nabc\n-----END ENCRYPTED PRIVATE KEY-----"),
+    /REDACTED_PEM/,
+  );
 });
 
 test("export redacts by default and keeps text with --no-redact", () => {
