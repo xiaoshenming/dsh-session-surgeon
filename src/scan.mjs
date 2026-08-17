@@ -6,10 +6,6 @@ import { defaultSessionRoot, listSessionFiles } from "./find.mjs";
 
 export { defaultSessionRoot, listSessionFiles };
 
-function firstLine(text) {
-  return String(text).split("\n").find(Boolean) ?? "";
-}
-
 /**
  * Header-only listing of one session artifact.
  * Full inspect lives in src/inspect.mjs.
@@ -59,7 +55,7 @@ export async function scanHeader(entry) {
       error: headerFrame.error ?? "corrupt Zstandard session log: first frame is not exactly one header line",
     };
   }
-  const classified = classifyHeader(firstLine(headerFrame.text));
+  const classified = classifyHeader(headerFrame.text);
   const failed = frames.filter((f) => !f.ok && !f.torn).length;
   const torn = frames.some((f) => f.torn);
   let health = classified.ok ? (failed ? "failed-middle-frame" : "header-ok") : classified.code;
