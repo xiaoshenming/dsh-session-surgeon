@@ -224,3 +224,14 @@ M2 完成时：
 - 4 类合成 fixture 全部 `repair --apply` 后可被官方 loader 语义接受（连续 seq、成对 turn、合法 header）
 - 不把任何 `@deepseek-ai/*` 打进 runtime `dependencies`
 - 对健康的本机会话 `repair --dry-run` 报告 0 处必须修改
+
+---
+
+## 9. 知识文档索引
+
+| 文档 | 回答什么 |
+|---|---|
+| [PLAN.md](./PLAN.md) | 做什么、不做什么、里程碑、发布 |
+| [SESSION-FORMAT.md](./SESSION-FORMAT.md) | 磁盘布局、zstd 帧、header、packed 行、官方何时拒载 |
+| [REPAIR-SPEC.md](./REPAIR-SPEC.md) | 修复步骤如何对齐官方 loader |
+| [LEARNING-TASKS.md](./LEARNING-TASKS.md) | 为什么没有 Codex task id，怎么让 DSH 学会一个任务 |

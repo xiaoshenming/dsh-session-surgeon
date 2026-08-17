@@ -53,8 +53,10 @@ DSH has **session id + optional same-session goal id**, not a Codex-style resuma
 
 ## Docs
 
-- [docs/PLAN.md](./docs/PLAN.md) — milestones, on-disk format, safety
-- [docs/LEARNING-TASKS.md](./docs/LEARNING-TASKS.md) — how to teach DSH a task
+- [docs/PLAN.md](./docs/PLAN.md) — milestones, safety, release
+- [docs/SESSION-FORMAT.md](./docs/SESSION-FORMAT.md) — zstd frames, header, packed rows, when the official loader refuses
+- [docs/REPAIR-SPEC.md](./docs/REPAIR-SPEC.md) — repair steps aligned with the official loader
+- [docs/LEARNING-TASKS.md](./docs/LEARNING-TASKS.md) — why there is no Codex task id
 
 ## Safety
 

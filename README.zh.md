@@ -4,7 +4,7 @@
 
 官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
 
-当前是第 0 周骨架。完整规划见 [docs/PLAN.md](./docs/PLAN.md)。
+当前是第 0 周骨架。规划见 [docs/PLAN.md](./docs/PLAN.md)，格式见 [docs/SESSION-FORMAT.md](./docs/SESSION-FORMAT.md)，修复合同见 [docs/REPAIR-SPEC.md](./docs/REPAIR-SPEC.md)。
 
 ```bash
 node bin/dsh-session-surgeon.mjs scan
