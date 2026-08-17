@@ -80,6 +80,38 @@ test("packs reasoning-chunks and tool-call-chunks", () => {
   assert.equal(expanded[2].data.chunk.name, "bash");
 });
 
+test("tail gap without a later turn/end is seq-gap-tail, not committed", async () => {
+  const events = [
+    ev("turn/start", 0, { turn: 1 }),
+    ev("user/message", 1, {
+      id: "u",
+      role: "user",
+      source: { kind: "user" },
+      content: [{ type: "text", text: "x" }],
+    }),
+    ev("assistant/message", 7, {
+      turn: 1,
+      step: 1,
+      message: {
+        id: "a",
+        role: "assistant",
+        source: { kind: "model", provider: "x", model: "y" },
+        content: [{ type: "text", text: "y" }],
+      },
+    }),
+  ];
+  const head = await compressFrame(JSON.stringify(header) + "\n");
+  const body = await compressFrame(events.map((e) => JSON.stringify(e)).join("\n") + "\n");
+  const decoded = decodeSessionBuffer(Buffer.concat([head, body]));
+  assert.equal(decoded.health, "seq-gap-tail");
+  assert.ok(decoded.issues.some((i) => i.code === "seq-gap-tail"));
+  assert.ok(!decoded.issues.some((i) => i.code === "seq-gap-committed"));
+  const { planRepair } = await import("../src/repair.mjs");
+  const plan = planRepair(decoded);
+  assert.ok(plan.actions.some((a) => a.code === "seq-gap-tail"));
+  assert.ok(!plan.actions.some((a) => a.code === "seq-gap-committed"));
+});
+
 test("unknown-type is kept", async () => {
   const events = [
     ev("turn/start", 0, { turn: 1 }),

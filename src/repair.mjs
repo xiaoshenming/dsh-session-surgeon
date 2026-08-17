@@ -52,23 +52,18 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
 
   let events = decoded.events.map((event) => event);
 
-  const sawCommittedTurnEnd = (decoded.issues ?? []).some(
-    (issue) => issue.code === "seq-gap-committed" && /turn\/end/.test(issue.message ?? ""),
-  );
   if (decoded.health === "seq-gap-committed" && steps.committedGap) {
     const keepThrough = lastTurnEndIndex(events);
-    if (sawCommittedTurnEnd && keepThrough >= 0) {
-      events = events.slice(0, keepThrough + 1);
-      actions.push({
-        code: "seq-gap-committed",
-        detail: "truncated to last turn/end before the committed gap",
-      });
-    } else {
-      actions.push({
-        code: "seq-gap-committed",
-        detail: "rewrite committed prefix, dropping the on-disk dirty tail",
-      });
-    }
+    events = keepThrough >= 0 ? events.slice(0, keepThrough + 1) : events;
+    actions.push({
+      code: "seq-gap-committed",
+      detail: "truncated to last turn/end before the committed gap",
+    });
+  } else if (decoded.health === "seq-gap-tail" && steps.dropDirtyTail) {
+    actions.push({
+      code: "seq-gap-tail",
+      detail: "rewrite committed prefix, dropping the on-disk dirty tail",
+    });
   } else if (decoded.health === "unparsable-line" && steps.dropDirtyTail) {
     actions.push({
       code: "unparsable-line",

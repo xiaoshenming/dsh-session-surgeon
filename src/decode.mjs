@@ -11,6 +11,7 @@ const HEALTH_RANK = [
   "failed-middle-frame",
   "seq-gap-committed",
   "unparsable-line",
+  "seq-gap-tail",
   "lone-surrogate",
   "torn-tail",
   "unknown-type",
@@ -135,12 +136,12 @@ export function decodeSessionBuffer(buf) {
   }
 
   const complete = scanner.checkpoint();
-  if (complete.committedBytes !== complete.inputBytes) {
+  if (complete.committedBytes !== complete.inputBytes && scanner.issue == null) {
     const next = {
       code: "unparsable-line",
       message: "complete frame contains a torn JSONL record",
     };
-    scanner.issue ??= next;
+    scanner.issue = next;
     scanner.issues.push(next);
   }
   if (tornText != null) scanner.write(Buffer.from(tornText, "utf8"));
@@ -151,6 +152,7 @@ export function decodeSessionBuffer(buf) {
 
   for (const issue of finished.issues) {
     if (issue.code === "seq-gap-committed") health = worse(health, "seq-gap-committed");
+    else if (issue.code === "seq-gap-tail") health = worse(health, "seq-gap-tail");
     else if (issue.code === "unparsable-line") health = worse(health, "unparsable-line");
   }
   if (failedFrames > 0) health = worse(health, "failed-middle-frame");

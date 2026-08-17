@@ -71,6 +71,7 @@ export class SessionLogScanner {
     if (parsed && typeof parsed.type === "string" && parsed.seq0 != null) this.packedRows += 1;
     if (this.issue !== null) {
       if (decoded.some((event) => event.type === "turn/end")) {
+        if (this.issue.code === "seq-gap-tail") this.issue.code = "seq-gap-committed";
         this.issues.push({
           code: this.issue.code,
           message: `${this.issue.code} followed by turn/end at line ${this.eventLine}`,
@@ -84,13 +85,14 @@ export class SessionLogScanner {
       if (event.seq !== this.events.length) {
         const expected = this.events.length;
         this.events.length = rowStart;
+        const committed = decoded.some((candidate) => candidate.type === "turn/end");
         this.issue = {
-          code: "seq-gap-committed",
+          code: committed ? "seq-gap-committed" : "seq-gap-tail",
           message: `seq gap in committed region at line ${this.eventLine} (expected ${expected}, got ${event.seq})`,
           line: this.eventLine,
         };
         this.issues.push(this.issue);
-        if (decoded.some((candidate) => candidate.type === "turn/end")) {
+        if (committed) {
           this.issues.push({
             code: "seq-gap-committed",
             message: `seq-gap-committed followed by turn/end at line ${this.eventLine}`,
