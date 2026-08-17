@@ -26,6 +26,18 @@ test("empty JSONL line is unparsable and stops the prefix", () => {
   assert.equal(done.events[0].type, "turn/start");
 });
 
+test("empty line inside a complete zstd frame is unparsable-line", async () => {
+  const { compressFrame } = await import("../src/zstd-frames.mjs");
+  const head = await compressFrame(JSON.stringify({ type: "session", ...header }) + "\n");
+  const body = await compressFrame(
+    JSON.stringify(ev("turn/start", 0, { turn: 1 })) + "\n\n" + JSON.stringify(ev("turn/end", 1, { turn: 1, reason: { kind: "completed" } })) + "\n",
+  );
+  const decoded = decodeSessionBuffer(Buffer.concat([head, body]));
+  assert.equal(decoded.health, "unparsable-line");
+  assert.equal(decoded.events.length, 1);
+  assert.equal(decoded.events[0].type, "turn/start");
+});
+
 test("healthy packed session still decodes after scanner rewrite", async () => {
   const { readFile } = await import("node:fs/promises");
   const { dirname, join } = await import("node:path");

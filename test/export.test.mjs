@@ -10,6 +10,7 @@ test("redactString strips keys, pem, and home paths", () => {
     /REDACTED_PEM/,
   );
   assert.equal(redactString("file /home/ming/secret.txt"), "file ~/secret.txt");
+  assert.equal(redactString("file C:\\Users\\ming\\secret.txt"), "file ~\\secret.txt");
   assert.match(
     redactString("-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----"),
     /REDACTED_PEM/,

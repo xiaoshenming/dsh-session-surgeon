@@ -1,7 +1,7 @@
 const SK_RE = /(^|[^A-Za-z0-9_-])sk-[A-Za-z0-9]{10,}/g;
 const PEM_RE =
   /-----BEGIN (?:OPENSSH |RSA |EC |DSA |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?-----END (?:OPENSSH |RSA |EC |DSA |ENCRYPTED )?PRIVATE KEY-----/g;
-const HOME_RE = /\/(?:home|Users)\/[^/\s]+/g;
+const HOME_RE = /(?:\/(?:home|Users)\/[^/\s]+|[A-Za-z]:\\Users\\[^\\\s]+)/g;
 
 /** True when `s` contains an unpaired UTF-16 surrogate. */
 export function containsLoneSurrogate(s) {
