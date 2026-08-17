@@ -31,6 +31,7 @@
 | `src/known-types.mjs` | packed |
 | `src/closers.mjs` | closers |
 | `src/decode.mjs` | decode |
+| `src/scanner.mjs` | decode |
 | `src/encode.mjs` | encode |
 | `src/scan.mjs` | scan |
 | `src/inspect.mjs` | inspect |

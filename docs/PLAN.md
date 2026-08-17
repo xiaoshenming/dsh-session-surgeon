@@ -2,7 +2,7 @@
 
 > 仓库：`/home/ming/data/Project/DSHProject/dsh-session-surgeon`
 > 兼容：DeepSeek Harness `0.1.0-rc.6`
-> 状态：第 0 周（规划 + 骨架）
+> 状态：v0.1 已落地（scan / inspect / repair / compact / export + web 插件）
 > 本机实测会话：`~/.dsh/sessions/--home-ming--/session-6b29ed49-540f-4778-bdff-172942d8c879`
 
 一句话：把打不开、卡死、seq 坏掉的 DSH 会话修回来，并能压缩、切片、脱敏导出。官方以后修加载器，也救不回已经坏掉的日志。
