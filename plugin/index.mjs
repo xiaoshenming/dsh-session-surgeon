@@ -30,18 +30,18 @@ async function loadDefineTool() {
     const mod = await import("@deepseek-ai/dsh-tools");
     if (typeof mod.defineTool === "function") return mod.defineTool;
   } catch {
-    // link: installs are outside the dsh node_modules tree; walk the host graph.
+    // link: installs sit outside the dsh node_modules tree.
   }
   try {
     const { createRequire } = await import("node:module");
-    const req = createRequire(import.meta.url);
-    const fromDsh = req.resolve("@deepseek-ai/dsh-tools", {
-      paths: [
-        "/home/ming/.nvm/versions/node/v22.19.0/lib/node_modules/@deepseek-ai/dsh",
-        process.cwd(),
-      ],
-    });
+    const { dirname, join } = await import("node:path");
     const { pathToFileURL } = await import("node:url");
+    const req = createRequire(import.meta.url);
+    const search = [
+      process.cwd(),
+      join(dirname(process.execPath), "..", "lib", "node_modules", "@deepseek-ai", "dsh"),
+    ];
+    const fromDsh = req.resolve("@deepseek-ai/dsh-tools", { paths: search });
     const mod = await import(pathToFileURL(fromDsh).href);
     if (typeof mod.defineTool === "function") return mod.defineTool;
   } catch {
