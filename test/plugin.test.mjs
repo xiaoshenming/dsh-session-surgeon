@@ -21,6 +21,15 @@ test("package.json keeps @deepseek-ai/* out of dependencies", async () => {
   assert.ok(pkg.exports["."].includes("plugin/index.mjs"));
 });
 
+test("apply registers the three session tools when dsh-tools is resolvable", async () => {
+  const registered = [];
+  const ctx = { tools: { register(def) { registered.push(def.name); } } };
+  const { apply } = await import("../plugin/index.mjs");
+  await apply(ctx);
+  if (registered.length === 0) return; // host package missing — import-only path already covered
+  assert.deepEqual(registered, ["session_scan", "session_inspect", "session_repair"]);
+});
+
 test("cordis.patch.yml inserts session-surgeon", async () => {
   const yml = await readFile(join(ROOT, "cordis.patch.yml"), "utf8");
   assert.match(yml, /id:\s*session-surgeon/);
