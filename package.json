@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-surgeon",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Repair DeepSeek Harness sessions that refuse to load (seq gap, torn zstd frames, lone surrogates).",
   "type": "module",
   "bin": {
@@ -18,16 +18,45 @@
     "jsonl",
     "repair"
   ],
+  "exports": {
+    ".": "./plugin/index.mjs",
+    "./client": "./plugin/client.mjs",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
+  },
   "files": [
     "bin",
     "src",
+    "plugin",
     "docs",
+    "cordis.patch.yml",
     "README.md",
     "README.zh.md",
     "LICENSE"
   ],
   "scripts": {
     "scan": "node bin/dsh-session-surgeon.mjs scan",
-    "inspect": "node bin/dsh-session-surgeon.mjs inspect"
+    "inspect": "node bin/dsh-session-surgeon.mjs inspect",
+    "build-fixtures": "node fixtures/synthetic/build.mjs",
+    "test": "node --test test/*.test.mjs"
   }
 }

@@ -1,67 +1,160 @@
 #!/usr/bin/env node
-import { defaultSessionRoot, inspectSession, listSessionFiles, scanHeader } from "../src/scan.mjs";
+import { readFile } from "node:fs/promises";
+import { defaultSessionRoot, listSessionFiles, scanAll, scanHeader } from "../src/scan.mjs";
+import { inspectEntry, indexRoot, pickSession } from "../src/inspect.mjs";
+import { decodeSessionBuffer } from "../src/decode.mjs";
+import { applyRepair } from "../src/repair.mjs";
+import { applyCompact } from "../src/compact.mjs";
+import { exportSession, writeExport } from "../src/export.mjs";
+import { formatIndexText, formatInspectText, formatRepairText, formatScanText } from "../src/format.mjs";
 
 function usage() {
-  console.log(`dsh-session-surgeon — repair DeepSeek Harness sessions
+  console.log(`dsh-session-surgeon — repair DeepSeek Harness sessions that refuse to load
+把打不开的 DSH 会话修回来（seq gap / torn zstd / lone surrogate）
 
 Usage:
-  dsh-session-surgeon scan [root]
-  dsh-session-surgeon inspect <session-id> [root]
-  dsh-session-surgeon repair <session-id>   (not implemented)
-  dsh-session-surgeon compact <session-id>  (not implemented)
-  dsh-session-surgeon export <session-id>   (not implemented)
+  dsh-session-surgeon scan [root] [--format json|text]
+  dsh-session-surgeon inspect <id> [root] [--format json|text]
+  dsh-session-surgeon repair <id> [root] [--dry-run|--apply] [--format json|text]
+  dsh-session-surgeon compact <id> [root] --keep-last-turns N [--dry-run|--apply]
+  dsh-session-surgeon export <id> [root] [--no-redact] [--out file]
+  dsh-session-surgeon index [root] [--format json|text]
 
-Default root: ~/.dsh/sessions  (override with DSH_SESSION_ROOT or the last arg)
+Defaults: root=~/.dsh/sessions (or $DSH_SESSION_ROOT); repair/compact are dry-run;
+export redacts secrets unless --no-redact.
 `);
 }
 
-function pick(entries, id) {
-  const hits = entries.filter((e) => e.sessionDir === id || e.header?.id === id);
-  if (hits.length === 1) return hits[0];
-  if (hits.length === 0) {
-    throw new Error(`session not found: ${id}`);
-  }
-  throw new Error(`ambiguous session id ${id}: ${hits.map((h) => h.dir).join(", ")}`);
+function takeFlag(args, name) {
+  const i = args.indexOf(name);
+  if (i === -1) return false;
+  args.splice(i, 1);
+  return true;
 }
 
-const [cmd = "help", ...rest] = process.argv.slice(2);
+function takeOpt(args, name) {
+  const i = args.indexOf(name);
+  if (i === -1) return undefined;
+  const value = args[i + 1];
+  args.splice(i, 2);
+  return value;
+}
+
+function emit(format, json, text) {
+  console.log(format === "text" ? text : JSON.stringify(json, null, 2));
+}
+
+async function resolveEntry(root, id) {
+  const entries = await listSessionFiles(root);
+  const scanned = [];
+  for (const entry of entries) scanned.push(await scanHeader(entry));
+  return pickSession(scanned, id);
+}
+
+const argv = process.argv.slice(2);
+const cmd = argv[0] ?? "help";
+const rest = argv.slice(1);
 
 if (cmd === "help" || cmd === "-h" || cmd === "--help") {
   usage();
   process.exit(0);
 }
 
-if (cmd === "scan") {
-  const root = rest[0] ?? defaultSessionRoot();
-  const entries = await listSessionFiles(root);
-  const rows = [];
-  for (const entry of entries) {
-    rows.push(await scanHeader(entry));
+try {
+  if (cmd === "scan") {
+    const format = takeOpt(rest, "--format") ?? "json";
+    const root = rest[0] ?? defaultSessionRoot();
+    const report = await scanAll(root);
+    emit(format, report, formatScanText(report));
+    process.exit(0);
   }
-  console.log(JSON.stringify({ root, count: rows.length, sessions: rows }, null, 2));
-  process.exit(0);
-}
 
-if (cmd === "inspect") {
-  const id = rest[0];
-  if (!id) {
-    usage();
-    process.exit(2);
+  if (cmd === "index") {
+    const format = takeOpt(rest, "--format") ?? "json";
+    const root = rest[0] ?? defaultSessionRoot();
+    const report = await indexRoot(root);
+    emit(format, report, formatIndexText(report));
+    process.exit(0);
   }
-  const root = rest[1] ?? defaultSessionRoot();
-  const entries = await listSessionFiles(root);
-  const scanned = [];
-  for (const entry of entries) scanned.push(await scanHeader(entry));
-  const entry = pick(scanned, id);
-  const report = await inspectSession(entry);
-  console.log(JSON.stringify(report, null, 2));
-  process.exit(0);
-}
 
-if (cmd === "repair" || cmd === "compact" || cmd === "export") {
-  console.error(`${cmd} is not implemented in week 0. See docs/PLAN.md.`);
+  if (cmd === "inspect") {
+    const format = takeOpt(rest, "--format") ?? "json";
+    const id = rest[0];
+    if (!id) {
+      usage();
+      process.exit(2);
+    }
+    const root = rest[1] ?? defaultSessionRoot();
+    const entry = await resolveEntry(root, id);
+    const report = await inspectEntry(entry);
+    emit(format, report, formatInspectText(report));
+    process.exit(0);
+  }
+
+  if (cmd === "repair") {
+    const format = takeOpt(rest, "--format") ?? "json";
+    const apply = takeFlag(rest, "--apply");
+    takeFlag(rest, "--dry-run");
+    const id = rest[0];
+    if (!id) {
+      usage();
+      process.exit(2);
+    }
+    const root = rest[1] ?? defaultSessionRoot();
+    const entry = await resolveEntry(root, id);
+    if (!entry.file) throw Object.assign(new Error("no canonical session file"), { code: "not-found" });
+    const decoded = decodeSessionBuffer(await readFile(entry.file));
+    const result = await applyRepair({ file: entry.file, decoded, dryRun: !apply });
+    emit(format, result, formatRepairText(result));
+    process.exit(result.plan.refuse ? 1 : 0);
+  }
+
+  if (cmd === "compact") {
+    const format = takeOpt(rest, "--format") ?? "json";
+    const apply = takeFlag(rest, "--apply");
+    takeFlag(rest, "--dry-run");
+    const keepRaw = takeOpt(rest, "--keep-last-turns");
+    const id = rest[0];
+    if (!id || keepRaw == null) {
+      usage();
+      process.exit(2);
+    }
+    const keepLastTurns = Number(keepRaw);
+    const root = rest[1] ?? defaultSessionRoot();
+    const entry = await resolveEntry(root, id);
+    if (!entry.file) throw Object.assign(new Error("no canonical session file"), { code: "not-found" });
+    const decoded = decodeSessionBuffer(await readFile(entry.file));
+    const result = await applyCompact({ file: entry.file, decoded, keepLastTurns, dryRun: !apply });
+    emit(format, result, formatRepairText(result));
+    process.exit(result.plan.refuse ? 1 : 0);
+  }
+
+  if (cmd === "export") {
+    const noRedact = takeFlag(rest, "--no-redact");
+    const out = takeOpt(rest, "--out");
+    const id = rest[0];
+    if (!id) {
+      usage();
+      process.exit(2);
+    }
+    const root = rest[1] ?? defaultSessionRoot();
+    const entry = await resolveEntry(root, id);
+    if (!entry.file) throw Object.assign(new Error("no canonical session file"), { code: "not-found" });
+    const decoded = decodeSessionBuffer(await readFile(entry.file));
+    const exported = exportSession(decoded, { redact: !noRedact });
+    if (out) {
+      const written = await writeExport(exported.text, out);
+      console.log(JSON.stringify(written, null, 2));
+    } else {
+      process.stdout.write(exported.text);
+    }
+    process.exit(0);
+  }
+
+  usage();
   process.exit(2);
+} catch (error) {
+  const code = error && typeof error === "object" ? error.code : undefined;
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
 }
-
-usage();
-process.exit(2);

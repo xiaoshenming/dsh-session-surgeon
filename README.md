@@ -4,8 +4,8 @@ Repair DeepSeek Harness sessions that refuse to load.
 
 把打不开、卡死、seq 坏掉的 DSH 会话修回来。官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
 
-> Status: week 0 skeleton. Compatible with `@deepseek-ai/dsh@0.1.0-rc.6`.
-> 仓库位置：`/home/ming/data/Project/DSHProject/dsh-session-surgeon`
+> Compatible with `@deepseek-ai/dsh@0.1.0-rc.6`.
+> Checkout: `/home/ming/data/Project/DSHProject/dsh-session-surgeon`
 
 ## Why
 
@@ -18,32 +18,37 @@ Real crash families from official Discussions:
 
 Cost meters / memory / marketplaces are saturated. Almost nobody repairs the JSONL.
 
-## Install (later)
+## Install
 
-```bash
-# CLI, no dsh web required
-npx dsh-session-surgeon scan
-
-# optional plugin (week 2)
-dsh plugin --profile web add dsh-session-surgeon
-```
-
-Right now, from this checkout:
+CLI, no `dsh web` required:
 
 ```bash
 node bin/dsh-session-surgeon.mjs scan
-node bin/dsh-session-surgeon.mjs inspect session-6b29ed49-540f-4778-bdff-172942d8c879
+node bin/dsh-session-surgeon.mjs inspect <session-id>
+node bin/dsh-session-surgeon.mjs repair <session-id>          # dry-run
+node bin/dsh-session-surgeon.mjs repair <session-id> --apply  # writes .bak.<utc> first
 ```
+
+Hot-plug into the web profile (does not patch DSH source):
+
+```bash
+dsh plugin --profile web add link:/home/ming/data/Project/DSHProject/dsh-session-surgeon
+```
+
+Then restart `dsh web`. Agent tools: `session_scan` / `session_inspect` / `session_repair` (`apply` defaults to false).
 
 ## Commands
 
 | command | meaning |
 |---|---|
-| `scan [root]` | list sessions + header + health hint (header-frame only in week 0) |
-| `inspect <id>` | decode every zstd frame, count types, report seq gaps |
-| `repair <id>` | **not implemented** — will default to `--dry-run` |
-| `compact <id>` | **not implemented** |
-| `export <id>` | **not implemented** — will default to redaction |
+| `scan [root]` | list sessions + header health + orphan `.tmp` |
+| `inspect <id>` | decode every zstd frame, expand packed rows, report seq gaps |
+| `repair <id>` | default `--dry-run`; `--apply` rewrites after `.bak.<utc>` |
+| `compact <id> --keep-last-turns N` | keep the last N complete turns, renumber seq from 0 |
+| `export <id>` | JSONL dump; redacts secrets unless `--no-redact` |
+| `index [root]` | session / parent / goal / health table |
+
+`--format text` prints a human table. Exit 0 on success, 2 on usage error, 1 on not-found / refuse.
 
 ## What this is not
 
@@ -57,13 +62,14 @@ DSH has **session id + optional same-session goal id**, not a Codex-style resuma
 - [docs/SESSION-FORMAT.md](./docs/SESSION-FORMAT.md) — zstd frames, header, packed rows, when the official loader refuses
 - [docs/REPAIR-SPEC.md](./docs/REPAIR-SPEC.md) — repair steps aligned with the official loader
 - [docs/LEARNING-TASKS.md](./docs/LEARNING-TASKS.md) — why there is no Codex task id
+- [docs/IMPLEMENTATION-CONTRACT.md](./docs/IMPLEMENTATION-CONTRACT.md) — multi-agent implementation contract
 
 ## Safety
 
-- Default is read-only.
-- Future write paths require `--apply` and write `.bak.<utc>` first.
+- Default is read-only. Write paths require `--apply` and write `.bak.<utc>` first.
 - Never commit raw files from `~/.dsh/sessions` (they contain user text and secrets).
 - Do **not** put `@deepseek-ai/dsh-tools` in `dependencies`.
+- Export redacts `sk-*`, PEM blocks, and home paths unless `--no-redact`.
 
 ## License
 

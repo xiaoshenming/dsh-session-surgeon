@@ -1,0 +1,17 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node fixtures/synthetic/build.mjs
+      - run: node --test test/*.test.mjs
+      - run: bash scripts/check-no-secrets.sh
