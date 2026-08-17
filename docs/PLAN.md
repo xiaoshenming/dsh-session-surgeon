@@ -1,6 +1,6 @@
 # dsh-session-surgeon 规划
 
-> 仓库：`/home/ming/dsh-session-surgeon`
+> 仓库：`/home/ming/data/Project/DSHProject/dsh-session-surgeon`
 > 兼容：DeepSeek Harness `0.1.0-rc.6`
 > 状态：第 0 周（规划 + 骨架）
 > 本机实测会话：`~/.dsh/sessions/--home-ming--/session-6b29ed49-540f-4778-bdff-172942d8c879`
@@ -148,7 +148,7 @@ surgeon 的价值：官方修加载器救不回已经写坏的文件。我们修
 
 ### M0 本周（骨架，现在）
 
-- [x] 仓库落在 `/home/ming/dsh-session-surgeon`
+- [x] 仓库落在 `/home/ming/data/Project/DSHProject/dsh-session-surgeon`
 - [x] PLAN / LEARNING-TASKS / README
 - [x] CLI 能列出本机会话 header（只读第 1 帧）
 - [ ] 合成 fixture：残缺尾帧、seq gap、lone surrogate、孤儿 tmp

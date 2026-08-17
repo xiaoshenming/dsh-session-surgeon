@@ -5,7 +5,7 @@ Repair DeepSeek Harness sessions that refuse to load.
 把打不开、卡死、seq 坏掉的 DSH 会话修回来。官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
 
 > Status: week 0 skeleton. Compatible with `@deepseek-ai/dsh@0.1.0-rc.6`.
-> 仓库位置：`/home/ming/dsh-session-surgeon`
+> 仓库位置：`/home/ming/data/Project/DSHProject/dsh-session-surgeon`
 
 ## Why
 
