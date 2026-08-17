@@ -1,0 +1,33 @@
+{
+  "name": "dsh-session-surgeon",
+  "version": "0.0.1",
+  "description": "Repair DeepSeek Harness sessions that refuse to load (seq gap, torn zstd frames, lone surrogates).",
+  "type": "module",
+  "bin": {
+    "dsh-session-surgeon": "./bin/dsh-session-surgeon.mjs"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "deepseek",
+    "session",
+    "jsonl",
+    "repair"
+  ],
+  "files": [
+    "bin",
+    "src",
+    "docs",
+    "README.md",
+    "README.zh.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "scan": "node bin/dsh-session-surgeon.mjs scan",
+    "inspect": "node bin/dsh-session-surgeon.mjs inspect"
+  }
+}

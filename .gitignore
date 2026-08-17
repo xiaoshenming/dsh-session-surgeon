@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.DS_Store
+*.bak
+*.bak.*
+.env
+.env.*
+fixtures/private/
+# never commit live DSH transcripts
+raw-sessions/
