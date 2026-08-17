@@ -45,3 +45,12 @@ test("pickSession unique prefix", async () => {
   const hit = pickSession(entries, "session-synthetic-healthy");
   assert.ok(hit.sessionDir.includes("healthy"));
 });
+
+test("pickSession accepts a bare id or a session- prefix", () => {
+  const entries = [
+    { sessionDir: "session-abc", header: { id: "session-abc" }, dir: "/tmp/a" },
+    { sessionDir: "def", header: { id: "def" }, dir: "/tmp/b" },
+  ];
+  assert.equal(pickSession(entries, "abc").sessionDir, "session-abc");
+  assert.equal(pickSession(entries, "session-def").sessionDir, "def");
+});

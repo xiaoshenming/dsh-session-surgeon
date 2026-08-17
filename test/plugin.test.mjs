@@ -10,7 +10,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 test("plugin/index.mjs imports without throwing", async () => {
   const mod = await import("../plugin/index.mjs");
   assert.equal(mod.name, "session-surgeon");
-  assert.deepEqual(mod.inject, ["tools"]);
+  assert.deepEqual(mod.inject, ["tools", "webServer"]);
   assert.equal(typeof mod.apply, "function");
 });
 

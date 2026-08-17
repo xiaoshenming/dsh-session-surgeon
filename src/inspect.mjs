@@ -134,11 +134,21 @@ export async function indexRoot(root) {
   return { root, count: rows.length, sessions: rows };
 }
 
-/** Match sessionDir, header.id, or a unique prefix. */
+function idsOf(entry) {
+  const out = [entry.sessionDir, entry.header?.id].filter(Boolean);
+  const extra = [];
+  for (const value of out) {
+    if (value.startsWith("session-")) extra.push(value.slice("session-".length));
+    else extra.push(`session-${value}`);
+  }
+  return new Set([...out, ...extra]);
+}
+
+/** Match sessionDir, header.id, session- prefix variants, or a unique prefix. */
 export function pickSession(entries, id) {
-  const exact = entries.filter(
-    (e) => e.sessionDir === id || e.header?.id === id || e.header?.id === `session-${id}`,
-  );
+  const needle = String(id ?? "").trim();
+  if (!needle) throw Object.assign(new Error("session not found: (empty id)"), { code: "not-found" });
+  const exact = entries.filter((e) => idsOf(e).has(needle));
   if (exact.length === 1) return exact[0];
   if (exact.length > 1) {
     throw Object.assign(new Error(`ambiguous session id ${id}: ${exact.map((h) => h.dir).join(", ")}`), { code: "ambiguous" });

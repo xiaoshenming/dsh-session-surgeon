@@ -50,15 +50,15 @@ window.__ModuleLoader__.load({
     }
 
     function idFromRow(row, ctx) {
-      if (!row) return currentFromCtx(ctx);
-      if (row.getAttribute("aria-selected") === "true") return currentFromCtx(ctx);
-      const title = row.querySelector("[class*='title']")?.textContent?.trim();
       const list = ctx?.sessions?.list?.getSnapshot?.();
+      if (!row) return list?.current;
+      if (row.getAttribute("aria-selected") === "true" && list?.current) return list.current;
+      const title = row.querySelector("[class*='title']")?.textContent?.trim();
       if (list?.byId && title) {
         const hits = Object.values(list.byId).filter((s) => s && (s.id === title || s.displayTitle === title || s.title === title));
         if (hits.length === 1) return hits[0].id;
       }
-      return title || currentFromCtx(ctx);
+      return list?.current || title;
     }
 
     function createController() {
@@ -197,9 +197,20 @@ window.__ModuleLoader__.load({
       wait.observe(document.body, { childList: true, subtree: true });
       const unsub = controller.subscribe(applyActive);
       const onActivate = (event) => { if (event.detail !== "session-surgeon") controller.close(); };
+      const onOpen = (event) => {
+        const id = event.detail?.id;
+        const act = event.detail?.act || "inspect";
+        if (!id) return;
+        state.selected = id;
+        controller.open();
+        render();
+        if (act === "inspect") run("检查", () => api(API + "/inspect?id=" + encodeURIComponent(id)));
+        if (act === "repair") run("预览修复", () => api(API + "/repair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, apply: false }) }));
+      };
       document.addEventListener(EVENT, onActivate);
+      document.addEventListener("dsh-surgeon-open", onOpen);
       applyActive();
-      return () => { wait.disconnect(); unsub(); document.removeEventListener(EVENT, onActivate); document.documentElement.removeAttribute(ACTIVE); container?.remove(); };
+      return () => { wait.disconnect(); unsub(); document.removeEventListener(EVENT, onActivate); document.removeEventListener("dsh-surgeon-open", onOpen); document.documentElement.removeAttribute(ACTIVE); container?.remove(); };
     }
 
     function mountMenu(controller, ctx) {
@@ -227,23 +238,12 @@ window.__ModuleLoader__.load({
         add("检查会话", () => {
           const id = idFromRow(lastRow, ctx);
           if (!id) return toast("读不到会话 ID");
-          controller.open();
-          setTimeout(() => {
-            document.querySelector("[data-dsh-surgeon-view] [data-id='" + CSS.escape(id) + "']")?.click();
-            document.querySelector("[data-dsh-surgeon-view] [data-act='inspect']")?.click();
-          }, 250);
+          document.dispatchEvent(new CustomEvent("dsh-surgeon-open", { detail: { id, act: "inspect" } }));
         });
         add("预览修复", () => {
           const id = idFromRow(lastRow, ctx);
           if (!id) return toast("读不到会话 ID");
-          controller.open();
-          api(API + "/repair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, apply: false }) })
-            .then((data) => {
-              const view = document.querySelector("[data-dsh-surgeon-view] .ss-detail");
-              if (view) view.textContent = pretty(data);
-              toast(data.plan?.refuse || (data.plan?.actions?.length ? "可修复 " + data.plan.actions.length + " 项" : "无需修复"));
-            })
-            .catch((error) => toast(error.message || String(error)));
+          document.dispatchEvent(new CustomEvent("dsh-surgeon-open", { detail: { id, act: "repair" } }));
         });
       };
       const obs = new MutationObserver(() => { for (const menu of document.querySelectorAll("[role='menu']")) inject(menu); });

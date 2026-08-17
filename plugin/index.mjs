@@ -5,7 +5,7 @@ import { listSessionFiles } from "../src/find.mjs";
 import { makeRoutes } from "./routes.mjs";
 
 export const name = "session-surgeon";
-export const inject = ["tools"];
+export const inject = ["tools", "webServer"];
 
 function renderJson(_args, value) {
   const text = JSON.stringify(value, null, 2);
