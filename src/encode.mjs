@@ -1,5 +1,6 @@
 import { copyFile, open, rename } from "node:fs/promises";
 import { constants } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { compressFrame } from "./zstd-frames.mjs";
 import { toHeaderLine } from "./header.mjs";
 import { packChunkRuns } from "./packed.mjs";
@@ -66,6 +67,20 @@ export async function atomicWrite(dest, buf) {
 
 /** Copy `dest` to `dest.bak.<utc>`, then atomically replace `dest`. */
 export async function backupThenWrite(dest, buf, now = new Date()) {
-  await copyFile(dest, `${dest}.bak.${bakUtcStamp(now)}`);
+  const stamp = bakUtcStamp(now);
+  let bak = `${dest}.bak.${stamp}`;
+  try {
+    const handle = await open(bak, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
+    await handle.close();
+  } catch {
+    bak = `${dest}.bak.${stamp}.${randomBytes(3).toString("hex")}`;
+  }
+  await copyFile(dest, bak);
+  const copied = await open(bak, constants.O_RDONLY);
+  try {
+    await copied.sync();
+  } finally {
+    await copied.close();
+  }
   await atomicWrite(dest, buf);
 }

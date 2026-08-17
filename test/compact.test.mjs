@@ -77,3 +77,18 @@ test("apply compact writes a legal session", async () => {
   assert.ok(eventsSeqOk(after.events));
   assert.equal(after.events.filter((e) => e.type === "turn/start").length, 1);
 });
+
+test("backupThenWrite keeps a unique bak when the stamp collides", async () => {
+  const { readdir } = await import("node:fs/promises");
+  const { bakUtcStamp } = await import("../src/encode.mjs");
+  const dir = await mkdtemp(join(tmpdir(), "surgeon-bak-"));
+  const file = join(dir, "session.jsonl.zstd");
+  const first = await encodeSession({ header, events: twoTurns(), packChunks: false });
+  await atomicWrite(file, first);
+  const now = new Date("2026-01-02T03:04:05.006Z");
+  await backupThenWrite(file, first, now);
+  await backupThenWrite(file, first, now);
+  const names = (await readdir(dir)).filter((name) => name.includes(".bak."));
+  assert.ok(names.length >= 2, names.join(","));
+  assert.ok(names.some((name) => name.includes(bakUtcStamp(now))));
+});

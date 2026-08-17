@@ -80,7 +80,7 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
     const seen = new Set();
     for (let i = 0; i < events.length; i++) {
       const seq = events[i].seq;
-      if (seen.has(seq) || (i > 0 && seq <= events[i - 1].seq && seq !== i)) {
+      if (seen.has(seq) || (i > 0 && seq <= events[i - 1].seq)) {
         cut = i;
         break;
       }

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decodeSessionBuffer, eventsSeqOk } from "../src/decode.mjs";
-import { repairFile } from "../src/repair.mjs";
+import { planRepair, repairFile } from "../src/repair.mjs";
 import { containsLoneSurrogate } from "../src/redact.mjs";
 
 const FIX = join(dirname(fileURLToPath(import.meta.url)), "../fixtures/synthetic");
@@ -16,6 +16,27 @@ async function copyFixture(name) {
   await cp(join(FIX, name), dest);
   return dest;
 }
+
+test("decreasing seq is treated as overlap even when it equals the index", () => {
+  const header = { version: 0, id: "session-overlap", createdAt: 1, delegationDepth: 0 };
+  const events = [
+    { type: "turn/start", seq: 0, time: 1, data: { turn: 1 } },
+    { type: "turn/end", seq: 1, time: 2, data: { turn: 1, reason: { kind: "completed" } } },
+    { type: "turn/start", seq: 2, time: 3, data: { turn: 2 } },
+    { type: "turn/end", seq: 2, time: 4, data: { turn: 2, reason: { kind: "completed" } } },
+  ];
+  const plan = planRepair({
+    header,
+    headerClass: { ok: true, code: "header-ok", header },
+    events,
+    health: "ok",
+    issues: [],
+    failedFrames: 0,
+  });
+  assert.ok(plan.actions.some((a) => a.code === "seq-overlap-replay"));
+  assert.ok(plan.events.every((event, i) => event.seq === i));
+  assert.equal(plan.events.filter((e) => e.type === "turn/end" && e.seq === 2).length, 0);
+});
 
 test("apply on a healthy file reports dryRun false and wrote false", async () => {
   const dest = await copyFixture("healthy-packed.session.jsonl.zstd");
