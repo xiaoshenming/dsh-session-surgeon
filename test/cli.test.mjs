@@ -53,6 +53,18 @@ test("scan + inspect fixture root", async () => {
   assert.equal(report.health, "ok");
 });
 
+test("unknown id exits 1", async () => {
+  const root = await fixtureRoot();
+  const r = run(["inspect", "does-not-exist", root]);
+  assert.equal(r.status, 1);
+});
+
+test("compact with bad N exits 2", async () => {
+  const root = await fixtureRoot();
+  const r = run(["compact", "session-synthetic-healthy-packed", root, "--keep-last-turns", "0"]);
+  assert.equal(r.status, 2);
+});
+
 test("repair without --apply does not change bytes", async () => {
   const root = await fixtureRoot();
   const file = join(root, "--tmp--", "session-synthetic-torn-tail", "session.jsonl.zstd");

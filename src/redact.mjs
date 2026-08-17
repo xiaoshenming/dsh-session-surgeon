@@ -1,6 +1,6 @@
 const SK_RE = /(^|[^A-Za-z0-9_-])sk-[A-Za-z0-9]{10,}/g;
 const PEM_RE =
-  /-----BEGIN (?:OPENSSH|RSA|EC|DSA) PRIVATE KEY-----[\s\S]*?-----END (?:OPENSSH|RSA|EC|DSA) PRIVATE KEY-----/g;
+  /-----BEGIN (?:OPENSSH |RSA |EC |DSA |ENCRYPTED )?PRIVATE KEY-----[\s\S]*?-----END (?:OPENSSH |RSA |EC |DSA |ENCRYPTED )?PRIVATE KEY-----/g;
 const HOME_RE = /\/(?:home|Users)\/[^/\s]+/g;
 
 /** True when `s` contains an unpaired UTF-16 surrogate. */

@@ -9,7 +9,7 @@ function lastGoal(events) {
     if (event.type !== "goal/change") continue;
     const g = event.data?.goal;
     if (g && typeof g.id === "string") {
-      goal = { id: g.id, phase: g.phase ?? null, objective: g.objective };
+      goal = { id: g.id, phase: g.phase ?? null };
     }
   }
   return goal;

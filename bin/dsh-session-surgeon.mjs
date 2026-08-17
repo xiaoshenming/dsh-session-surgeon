@@ -36,6 +36,9 @@ function takeOpt(args, name) {
   const i = args.indexOf(name);
   if (i === -1) return undefined;
   const value = args[i + 1];
+  if (value == null || value.startsWith("--")) {
+    throw Object.assign(new Error(`${name} requires a value`), { code: "usage" });
+  }
   args.splice(i, 2);
   return value;
 }
@@ -120,6 +123,10 @@ try {
       process.exit(2);
     }
     const keepLastTurns = Number(keepRaw);
+    if (!Number.isSafeInteger(keepLastTurns) || keepLastTurns < 1) {
+      usage();
+      process.exit(2);
+    }
     const root = rest[1] ?? defaultSessionRoot();
     const entry = await resolveEntry(root, id);
     if (!entry.file) throw Object.assign(new Error("no canonical session file"), { code: "not-found" });
@@ -156,5 +163,5 @@ try {
 } catch (error) {
   const code = error && typeof error === "object" ? error.code : undefined;
   console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
+  process.exit(code === "usage" ? 2 : 1);
 }
