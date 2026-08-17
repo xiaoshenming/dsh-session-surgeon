@@ -21,6 +21,13 @@ test("package.json keeps @deepseek-ai/* out of dependencies", async () => {
   assert.ok(pkg.exports["."].includes("plugin/index.mjs"));
 });
 
+test("client ModuleLoader factory exposes settingsCopy", async () => {
+  const { settingsCopy } = await import("../plugin/client.mjs");
+  const copy = settingsCopy();
+  assert.equal(copy.title, "Session surgeon");
+  assert.match(copy.body, /session_scan/);
+});
+
 test("apply registers the three session tools when dsh-tools is resolvable", async () => {
   const registered = [];
   const ctx = { tools: { register(def) { registered.push(def.name); } } };
