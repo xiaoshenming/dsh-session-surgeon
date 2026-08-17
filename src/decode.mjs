@@ -86,7 +86,7 @@ export function decodeSessionBuffer(buf) {
   if (!headerFrame.ok || headerFrame.torn || !isExactHeaderRecord(headerFrame.text ?? "")) {
     const issues = [{
       code: "header-frame-corrupt",
-      message: headerFrame.error ?? "header frame is not exactly one newline-terminated record",
+      message: headerFrame.error ?? "corrupt Zstandard session log: first frame is not exactly one header line",
       frame: 0,
     }];
     return emptyResult({

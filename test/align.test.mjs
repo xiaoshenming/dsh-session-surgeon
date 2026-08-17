@@ -19,11 +19,12 @@ function ev(type, seq, data) {
   return { type, seq, time: 10 + seq, data };
 }
 
-test("header frame with a second line is header-frame-corrupt", async () => {
+test("header frame with a second line uses the official first-frame message", async () => {
   const extra = JSON.stringify(header) + "\n" + JSON.stringify(ev("turn/start", 0, { turn: 1 })) + "\n";
   const buf = await compressFrame(extra);
   const decoded = decodeSessionBuffer(buf);
   assert.equal(decoded.health, "header-frame-corrupt");
+  assert.match(decoded.issues[0]?.message ?? "", /first frame is not exactly one header line/);
   assert.equal(isExactHeaderRecord(extra), false);
 });
 

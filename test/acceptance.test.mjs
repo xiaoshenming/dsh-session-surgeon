@@ -56,6 +56,25 @@ test("CLI index and export --format paths work on fixtures", async () => {
   assert.match(exported.stdout, /"type":"session"/);
 });
 
+test("scan sees fixtures when laid out as project/id/session.jsonl.zstd", async () => {
+  const { mkdir, cp } = await import("node:fs/promises");
+  const { mkdtemp } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = await mkdtemp(join(tmpdir(), "surgeon-layout-"));
+  const dir = join(root, "--proj--", "session-synthetic-healthy-packed");
+  await mkdir(dir, { recursive: true });
+  await cp(join(FIX, "healthy-packed.session.jsonl.zstd"), join(dir, "session.jsonl.zstd"));
+  const listed = await listSessionFiles(root);
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].sessionDir, "session-synthetic-healthy-packed");
+  const scan = run(["scan", root, "--format", "json"]);
+  assert.equal(scan.status, 0, scan.stderr);
+  const report = JSON.parse(scan.stdout);
+  assert.equal(report.count, 1);
+  assert.equal(report.sessions[0].health, "header-ok");
+});
+
 test("healthy packed planRepair mustWrite is false", async () => {
   const decoded = decodeSessionBuffer(await readFile(join(FIX, "healthy-packed.session.jsonl.zstd")));
   assert.equal(planRepair(decoded).mustWrite, false);
