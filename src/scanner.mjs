@@ -90,7 +90,13 @@ export class SessionLogScanner {
           line: this.eventLine,
         };
         this.issues.push(this.issue);
-        if (decoded.some((candidate) => candidate.type === "turn/end")) return;
+        if (decoded.some((candidate) => candidate.type === "turn/end")) {
+          this.issues.push({
+            code: "seq-gap-committed",
+            message: `seq-gap-committed followed by turn/end at line ${this.eventLine}`,
+            line: this.eventLine,
+          });
+        }
         return;
       }
       this.events.push(event);
