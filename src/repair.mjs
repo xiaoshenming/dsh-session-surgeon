@@ -136,7 +136,7 @@ export async function applyRepair({ file, decoded, dryRun = true, steps } = {}) 
     return { dryRun, wrote: false, plan, afterHealth: decoded?.health };
   }
   if (dryRun || !plan.mustWrite) {
-    return { dryRun: true, wrote: false, plan, afterHealth: decoded?.health };
+    return { dryRun, wrote: false, plan, afterHealth: decoded?.health };
   }
   const buf = await encodeSession({ header: plan.header, events: plan.events });
   await backupThenWrite(file, buf);

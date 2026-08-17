@@ -65,7 +65,7 @@ export async function applyCompact({ file, decoded, keepLastTurns, dryRun = true
   const src = decoded ?? decodeSessionBuffer(await readFile(file));
   const plan = planCompact(src, { keepLastTurns });
   if (plan.refuse) return { dryRun, wrote: false, plan };
-  if (dryRun || !plan.mustWrite) return { dryRun: true, wrote: false, plan };
+  if (dryRun || !plan.mustWrite) return { dryRun, wrote: false, plan };
   if (!eventsSeqOk(plan.events)) throw new Error("compact produced non-continuous seq");
   const buf = await encodeSession({ header: plan.header, events: plan.events });
   await backupThenWrite(file, buf);
