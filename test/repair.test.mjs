@@ -17,6 +17,14 @@ async function copyFixture(name) {
   return dest;
 }
 
+test("apply on a healthy file reports dryRun false and wrote false", async () => {
+  const dest = await copyFixture("healthy-packed.session.jsonl.zstd");
+  const result = await repairFile(dest, { dryRun: false });
+  assert.equal(result.dryRun, false);
+  assert.equal(result.wrote, false);
+  assert.equal(result.plan.mustWrite, false);
+});
+
 test("dry-run does not rewrite the file", async () => {
   const dest = await copyFixture("torn-tail.session.jsonl.zstd");
   const before = await readFile(dest);
