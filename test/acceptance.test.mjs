@@ -56,6 +56,33 @@ test("CLI index and export --format paths work on fixtures", async () => {
   assert.match(exported.stdout, /"type":"session"/);
 });
 
+test("scan reports header-frame-corrupt when frame 0 has two lines", async () => {
+  const { compressFrame } = await import("../src/zstd-frames.mjs");
+  const { scanHeader } = await import("../src/scan.mjs");
+  const extra = JSON.stringify({
+    type: "session",
+    version: 0,
+    id: "session-two-line-header",
+    createdAt: 1,
+    delegationDepth: 0,
+  }) + "\n{\"type\":\"turn/start\"}\n";
+  const dir = await mkdtemp(join(tmpdir(), "surgeon-two-line-"));
+  const sessionDir = join(dir, "--tmp--", "session-two-line-header");
+  await mkdir(sessionDir, { recursive: true });
+  const file = join(sessionDir, "session.jsonl.zstd");
+  const { writeFile } = await import("node:fs/promises");
+  await writeFile(file, await compressFrame(extra));
+  const report = await scanHeader({
+    project: "--tmp--",
+    sessionDir: "session-two-line-header",
+    dir: sessionDir,
+    file,
+    kind: "zstd",
+    tmpFiles: [],
+  });
+  assert.equal(report.health, "header-frame-corrupt");
+});
+
 test("scan sees fixtures when laid out as project/id/session.jsonl.zstd", async () => {
   const { mkdir, cp } = await import("node:fs/promises");
   const { mkdtemp } = await import("node:fs/promises");

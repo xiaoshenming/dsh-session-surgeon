@@ -1,6 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { classifyHeader } from "./header.mjs";
 import { decodeFrames } from "./zstd-frames.mjs";
+import { isExactHeaderRecord } from "./scanner.mjs";
 import { defaultSessionRoot, listSessionFiles } from "./find.mjs";
 
 export { defaultSessionRoot, listSessionFiles };
@@ -50,12 +51,12 @@ export async function scanHeader(entry) {
     return { ...base, frames: 0, health: "no-zstd-frame" };
   }
   const headerFrame = frames[0];
-  if (!headerFrame.ok || headerFrame.torn) {
+  if (!headerFrame.ok || headerFrame.torn || !isExactHeaderRecord(headerFrame.text ?? "")) {
     return {
       ...base,
       frames: frames.length,
       health: "header-frame-corrupt",
-      error: headerFrame.error,
+      error: headerFrame.error ?? "corrupt Zstandard session log: first frame is not exactly one header line",
     };
   }
   const classified = classifyHeader(firstLine(headerFrame.text));

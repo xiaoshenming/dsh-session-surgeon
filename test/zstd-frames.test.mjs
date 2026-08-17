@@ -30,6 +30,26 @@ test("truncated last 8 bytes reports tornStart", async () => {
   assert.equal(scanned.frames.length, 0);
 });
 
+test("scanZstdFrames matches official ranges when the module is present", async (t) => {
+  const officialPath =
+    "/home/ming/.nvm/versions/node/v22.19.0/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js";
+  let official;
+  try {
+    official = await import(officialPath);
+  } catch {
+    t.skip("official persistence-jsonl not resolvable as a module");
+    return;
+  }
+  if (typeof official.scanZstdFrames !== "function") {
+    t.skip("official scanZstdFrames is not exported");
+    return;
+  }
+  const a = await compressFrame("A\n");
+  const b = await compressFrame("B\n");
+  const buf = Buffer.concat([a, b, Buffer.from([0x28, 0xb5])]);
+  assert.deepEqual(scanZstdFrames(buf), official.scanZstdFrames(buf));
+});
+
 test("two concatenated frames scan independently", async () => {
   const a = await compressFrame("A\n");
   const b = await compressFrame("B\n");
