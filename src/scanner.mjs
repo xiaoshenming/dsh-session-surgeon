@@ -101,6 +101,14 @@ export class SessionLogScanner {
     this.committedBytes = endByte;
   }
 
+  checkpoint() {
+    return {
+      inputBytes: this.inputBytes,
+      committedBytes: this.committedBytes,
+      eventCount: this.events.length,
+    };
+  }
+
   finish() {
     this.finished = true;
     return {

@@ -28,6 +28,13 @@ export function planCompact(decoded, { keepLastTurns } = {}) {
   if (!decoded.header) {
     return { events: [], header: null, mustWrite: false, refuse: "header cannot be decoded", droppedTurns: 0 };
   }
+  if ((decoded.failedFrames ?? 0) > 0) {
+    return { events: decoded.events.slice(), header: decoded.header, mustWrite: false, refuse: "middle frame failed decompression", droppedTurns: 0 };
+  }
+  const headerCode = decoded.headerClass?.code ?? "header-ok";
+  if (headerCode !== "header-ok") {
+    return { events: decoded.events.slice(), header: decoded.header, mustWrite: false, refuse: `cannot compact: ${headerCode}`, droppedTurns: 0 };
+  }
   const complete = completeTurnStarts(decoded.events);
   if (complete.length <= keepLastTurns) {
     return {

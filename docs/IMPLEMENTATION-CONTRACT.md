@@ -164,7 +164,7 @@ dsh-session-surgeon index [root] [--format json|text]
 - host：`defineTool` 注册 `session_scan` / `session_inspect` / `session_repair`（repair 默认 dryRun=true，apply 必须显式）
 - `@deepseek-ai/dsh-tools` 只放 peerDependencies
 - 若 host 环境没有 defineTool（单元测试），plugin 仍应能被 import（把 defineTool 包在 try 或延迟注册）
-- client：settings.plugins.tab 列出会话健康；**不要**抢 aionui details 右栏，不要 DOM 补丁
+- client：settings.plugins.tab 只放 CLI / 工具说明（v0.1 不拉实时健康列表）；**不要**抢 aionui details 右栏，不要 DOM 补丁
 - 插件不监听端口、不改 profile、不访问网络
 
 ### 测试黄金样例

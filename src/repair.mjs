@@ -52,13 +52,26 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
 
   let events = decoded.events.map((event) => event);
 
-  // Decode already dropped a dirty on-disk tail; we still must rewrite the file.
-  if (
-    (decoded.health === "seq-gap-committed" && steps.committedGap) ||
-    (decoded.health === "unparsable-line" && steps.dropDirtyTail)
-  ) {
+  const sawCommittedTurnEnd = (decoded.issues ?? []).some(
+    (issue) => issue.code === "seq-gap-committed" && /turn\/end/.test(issue.message ?? ""),
+  );
+  if (decoded.health === "seq-gap-committed" && steps.committedGap) {
+    const keepThrough = lastTurnEndIndex(events);
+    if (sawCommittedTurnEnd && keepThrough >= 0) {
+      events = events.slice(0, keepThrough + 1);
+      actions.push({
+        code: "seq-gap-committed",
+        detail: "truncated to last turn/end before the committed gap",
+      });
+    } else {
+      actions.push({
+        code: "seq-gap-committed",
+        detail: "rewrite committed prefix, dropping the on-disk dirty tail",
+      });
+    }
+  } else if (decoded.health === "unparsable-line" && steps.dropDirtyTail) {
     actions.push({
-      code: decoded.health,
+      code: "unparsable-line",
       detail: "rewrite committed prefix, dropping the on-disk dirty tail",
     });
   }

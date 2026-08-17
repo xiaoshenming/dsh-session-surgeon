@@ -117,6 +117,7 @@ export function decodeSessionBuffer(buf) {
 
   const scanner = new SessionLogScanner(Buffer.from(headerFrame.text, "utf8"));
   const issues = [];
+  let tornText = null;
 
   for (let fi = 1; fi < frames.length; fi++) {
     const frame = frames[fi];
@@ -126,22 +127,23 @@ export function decodeSessionBuffer(buf) {
       continue;
     }
     if (!frame.ok || frame.text == null) continue;
-    const chunk = Buffer.from(frame.text, "utf8");
-    const before = scanner.inputBytes;
-    scanner.write(chunk);
-    if (!frame.torn && scanner.committedBytes !== scanner.inputBytes) {
-      const next = {
-        code: "unparsable-line",
-        message: `complete frame contains a torn JSONL record at frame ${fi}`,
-        frame: fi,
-      };
-      scanner.issue ??= next;
-      scanner.issues.push(next);
+    if (frame.torn) {
+      tornText = frame.text;
+      continue;
     }
-    if (frame.torn && scanner.inputBytes === before + chunk.length) {
-      // leftover fragment is the torn tail; finish() will ignore it
-    }
+    scanner.write(Buffer.from(frame.text, "utf8"));
   }
+
+  const complete = scanner.checkpoint();
+  if (complete.committedBytes !== complete.inputBytes) {
+    const next = {
+      code: "unparsable-line",
+      message: "complete frame contains a torn JSONL record",
+    };
+    scanner.issue ??= next;
+    scanner.issues.push(next);
+  }
+  if (tornText != null) scanner.write(Buffer.from(tornText, "utf8"));
 
   const finished = scanner.finish();
   issues.push(...finished.issues);
