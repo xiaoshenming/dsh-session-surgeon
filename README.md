@@ -5,7 +5,6 @@ Repair DeepSeek Harness sessions that refuse to load.
 把打不开、卡死、seq 坏掉的 DSH 会话修回来。官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
 
 > Compatible with `@deepseek-ai/dsh@0.1.0-rc.6`.
-> Checkout: `/home/ming/data/Project/DSHProject/dsh-session-surgeon`
 
 ## Why
 
@@ -37,7 +36,9 @@ node bin/dsh-session-surgeon.mjs repair <session-id> --apply  # writes .bak.<utc
 Hot-plug into the web profile (does not patch DSH source):
 
 ```bash
-dsh plugin --profile web add link:/home/ming/data/Project/DSHProject/dsh-session-surgeon
+git clone https://github.com/<you>/dsh-session-surgeon.git
+cd dsh-session-surgeon
+dsh plugin --profile web add link:"$(pwd)"
 ```
 
 Then restart `dsh web`. Agent tools: `session_scan` / `session_inspect` / `session_repair` (`apply` defaults to false).

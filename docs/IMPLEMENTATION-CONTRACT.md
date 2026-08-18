@@ -1,12 +1,11 @@
 # dsh-session-surgeon 实现合同（多智能体共享）
 
-仓库：`/home/ming/data/Project/DSHProject/dsh-session-surgeon`
 兼容：`@deepseek-ai/dsh@0.1.0-rc.6`
-对照源码（只读，禁止复制进 dependencies）：
-- `/home/ming/.nvm/versions/node/v22.19.0/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-session/lib/types/chunk-rows.js`
-- `/home/ming/.nvm/versions/node/v22.19.0/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-session/lib/types/repair.js`
-- `/home/ming/.nvm/versions/node/v22.19.0/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-session/lib/types/known-event-types.js`
-- `/home/ming/.nvm/versions/node/v22.19.0/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js`（scanZstdFrames / SessionLogScanner）
+对照源码（只读，禁止复制进 dependencies；路径随本机 DSH 安装位置变化）：
+- `@deepseek-ai/dsh-session/lib/types/chunk-rows.js`
+- `@deepseek-ai/dsh-session/lib/types/repair.js`
+- `@deepseek-ai/dsh-session/lib/types/known-event-types.js`
+- `@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js`（scanZstdFrames / SessionLogScanner）
 
 ## 硬约束
 

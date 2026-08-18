@@ -18,7 +18,9 @@ node bin/dsh-session-surgeon.mjs repair <id> --apply  # 先写 .bak.<utc>
 装进本机 web profile：
 
 ```bash
-dsh plugin --profile web add link:/home/ming/data/Project/DSHProject/dsh-session-surgeon
+git clone https://github.com/<you>/dsh-session-surgeon.git
+cd dsh-session-surgeon
+dsh plugin --profile web add link:"$(pwd)"
 ```
 
 DSH **没有** Codex 那种任务 ID。能 resume 的是 session；goal 只挂在当前会话上，恢复后还要显式 `resume`。详见 [docs/LEARNING-TASKS.md](./docs/LEARNING-TASKS.md)。
