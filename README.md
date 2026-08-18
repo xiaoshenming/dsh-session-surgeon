@@ -36,7 +36,7 @@ node bin/dsh-session-surgeon.mjs repair <session-id> --apply  # writes .bak.<utc
 Hot-plug into the web profile (does not patch DSH source):
 
 ```bash
-git clone https://github.com/<you>/dsh-session-surgeon.git
+git clone https://github.com/xiaoshenming/dsh-session-surgeon.git
 cd dsh-session-surgeon
 dsh plugin --profile web add link:"$(pwd)"
 ```

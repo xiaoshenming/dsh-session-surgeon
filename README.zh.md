@@ -18,7 +18,7 @@ node bin/dsh-session-surgeon.mjs repair <id> --apply  # 先写 .bak.<utc>
 装进本机 web profile：
 
 ```bash
-git clone https://github.com/<you>/dsh-session-surgeon.git
+git clone https://github.com/xiaoshenming/dsh-session-surgeon.git
 cd dsh-session-surgeon
 dsh plugin --profile web add link:"$(pwd)"
 ```
