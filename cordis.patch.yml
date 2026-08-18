@@ -1,10 +1,9 @@
 # dsh-session-surgeon bundle patch: inserts the dual-face plugin
 # into the web profile roster. Install with
-#   dsh plugin --profile web add link:<this-checkout>
+#   dsh plugin --profile web add "github:xiaoshenming/dsh-session-surgeon#main"
 #
 # Host half (exports ".") registers session_scan / session_inspect /
-# session_repair. Browser half (exports "./client") only occupies the
-# settings.plugins.tab — it does not patch the aionui details column.
+# session_repair. Browser half (exports "./client") mounts the overlay.
 - insert:
     - id: session-surgeon
       name: dsh-session-surgeon

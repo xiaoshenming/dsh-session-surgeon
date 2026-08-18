@@ -6,6 +6,21 @@ Repair DeepSeek Harness sessions that refuse to load.
 
 > Compatible with `@deepseek-ai/dsh@0.1.0-rc.6`.
 
+## Install
+
+One command, same as other DSH plugins:
+
+```bash
+dsh plugin --profile web add "github:xiaoshenming/dsh-session-surgeon#main"
+```
+
+Restart `dsh web`. Then:
+
+- Sidebar **会话医生 / Session surgeon**: scan, inspect, copy id, dry-run repair, apply repair, compact preview, export JSONL
+- Session ⋯ menu: copy session ID / inspect / dry-run repair
+
+Developers working in a checkout can still use `dsh plugin --profile web add link:"$(pwd)"`.
+
 ## Why
 
 Real crash families from official Discussions:
@@ -17,31 +32,20 @@ Real crash families from official Discussions:
 
 Cost meters / memory / marketplaces are saturated. Almost nobody repairs the JSONL.
 
-## Install
+## CLI
 
-After `dsh web` restart:
-
-- Sidebar **会话医生 / Session surgeon**: scan, inspect, copy id, dry-run repair, apply repair, compact preview, export JSONL
-- Session ⋯ menu: copy session id / inspect / dry-run repair
-
-CLI, no `dsh web` required:
+No `dsh web` required after the plugin (or this repo) is on disk:
 
 ```bash
-node bin/dsh-session-surgeon.mjs scan
-node bin/dsh-session-surgeon.mjs inspect <session-id>
-node bin/dsh-session-surgeon.mjs repair <session-id>          # dry-run
-node bin/dsh-session-surgeon.mjs repair <session-id> --apply  # writes .bak.<utc> first
+npx --yes github:xiaoshenming/dsh-session-surgeon scan
+npx --yes github:xiaoshenming/dsh-session-surgeon inspect <session-id>
+npx --yes github:xiaoshenming/dsh-session-surgeon repair <session-id>          # dry-run
+npx --yes github:xiaoshenming/dsh-session-surgeon repair <session-id> --apply  # writes .bak.<utc> first
 ```
 
-Hot-plug into the web profile (does not patch DSH source):
+Or from a clone: `node bin/dsh-session-surgeon.mjs scan`.
 
-```bash
-git clone https://github.com/xiaoshenming/dsh-session-surgeon.git
-cd dsh-session-surgeon
-dsh plugin --profile web add link:"$(pwd)"
-```
-
-Then restart `dsh web`. Agent tools: `session_scan` / `session_inspect` / `session_repair` (`apply` defaults to false).
+Agent tools after install: `session_scan` / `session_inspect` / `session_repair` (`apply` defaults to false).
 
 ## Commands
 
