@@ -58,6 +58,7 @@ test("makeRoutes exposes the surgeon endpoints", () => {
     API_PREFIX + "/inspect",
     API_PREFIX + "/repair",
     API_PREFIX + "/compact",
+    API_PREFIX + "/transcript",
     API_PREFIX + "/export",
     API_PREFIX + "/ui.css",
   ]);
@@ -78,7 +79,7 @@ test("non-loopback requests are forbidden", async () => {
   assert.equal(out.status, 403);
 });
 
-test("inspect / repair dry-run / export work on a healthy fixture", async () => {
+test("inspect / repair dry-run / export / transcript work on a healthy fixture", async () => {
   const { root, id } = await stagedRoot();
   const routes = Object.fromEntries(makeRoutes().map((r) => [r.path.split("/").at(-1), r]));
   const inspect = await invoke(routes.inspect, {
@@ -100,4 +101,12 @@ test("inspect / repair dry-run / export work on a healthy fixture", async () => 
   });
   assert.equal(exported.status, 200);
   assert.match(exported.json.text, /"type":"session"/);
+
+  const transcript = await invoke(routes.transcript, {
+    url: "/api/session-surgeon/transcript?id=" + id + "&root=" + encodeURIComponent(root),
+  });
+  assert.equal(transcript.status, 200);
+  assert.equal(transcript.json.count, 2);
+  assert.equal(transcript.json.messages[0].text, "Say hello.");
+  assert.equal(transcript.json.messages[1].text, "Hello world.");
 });

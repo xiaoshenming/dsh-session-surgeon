@@ -5,6 +5,7 @@ import { repairFile } from "../src/repair.mjs";
 import { applyCompact } from "../src/compact.mjs";
 import { decodeSessionBuffer } from "../src/decode.mjs";
 import { exportSession } from "../src/export.mjs";
+import { buildTranscript } from "../src/transcript.mjs";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -119,6 +120,31 @@ export function makeRoutes() {
           keepLastTurns,
           dryRun: body.apply !== true,
         }));
+      }),
+    },
+    {
+      kind: "exact",
+      path: `${API_PREFIX}/transcript`,
+      handler: wrap(async (req, res) => {
+        if (!isLoopback(req)) return writeJson(res, 403, { error: "loopback-only" });
+        if (req.method !== "GET") return writeJson(res, 405, { error: "GET only" });
+        const q = queryOf(req);
+        const id = q.get("id");
+        if (!id) return writeJson(res, 400, { error: "id required" });
+        const root = q.get("root") || defaultSessionRoot();
+        const entry = await resolveFile(root, id);
+        const decoded = decodeSessionBuffer(await readFile(entry.file));
+        const transcript = buildTranscript(decoded.events);
+        writeJson(res, 200, {
+          id: decoded.header?.id ?? id,
+          health: decoded.health,
+          project: entry.project,
+          cwd: decoded.header?.cwd ?? null,
+          title: transcript.title,
+          count: transcript.count,
+          omitted: transcript.omitted,
+          messages: transcript.messages,
+        });
       }),
     },
     {
