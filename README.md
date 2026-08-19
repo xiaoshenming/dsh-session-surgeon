@@ -1,10 +1,33 @@
 # dsh-session-surgeon
 
-Repair DeepSeek Harness sessions that refuse to load.
+Copy a session ID from the sidebar ⋯ menu, then paste it into a new chat so the new session can learn from the old one — the Codex-style “continue from this thread” move that stock DSH does not expose.
 
-把打不开、卡死、seq 坏掉的 DSH 会话修回来。官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
+Also repairs DeepSeek Harness sessions that refuse to load. 官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
 
 > Compatible with `@deepseek-ai/dsh@0.1.0-rc.6`.
+
+## Why copy the session ID
+
+Stock DSH session ⋯ only has rename / fork / archive. There is no “copy ID”.
+
+After this plugin:
+
+1. Left sidebar, click ⋯ on a session → **复制会话 ID**
+2. Open a new chat and paste something like:
+
+   ```text
+   Continue from session session-1e66cda9-a046-4893-8f4b-b817080acbea.
+   Read that log if you need prior context.
+   ```
+
+   or, for an agent with tools:
+
+   ```text
+   session_inspect id=session-1e66cda9-a046-4893-8f4b-b817080acbea
+   Then keep going from where that conversation left off.
+   ```
+
+The ID is the durable handle (with or without the `session-` prefix — same session). Fork duplicates a file; copying the ID lets a **new** session refer to the old one, the way people pass a Codex thread id around.
 
 ## Install
 
@@ -16,12 +39,12 @@ dsh plugin --profile web add "github:xiaoshenming/dsh-session-surgeon#main"
 
 Restart `dsh web`. Then:
 
-- Sidebar **会话医生 / Session surgeon**: scan, inspect, copy id, dry-run repair, apply repair, compact preview, export JSONL
-- Session ⋯ menu: copy session ID / inspect / dry-run repair
+- Session ⋯ menu: **复制会话 ID** (the everyday action) / inspect / dry-run repair
+- Sidebar **会话医生 / Session surgeon**: browse conversations, copy id, dry-run repair, apply repair, compact preview, export JSONL
 
 Developers working in a checkout can still use `dsh plugin --profile web add link:"$(pwd)"`.
 
-## Why
+## Also: repair unloadable sessions
 
 Real crash families from official Discussions:
 
@@ -30,7 +53,7 @@ Real crash families from official Discussions:
 - [#436](https://github.com/deepseek-ai/deepseek-harness/discussions/436) lone UTF-16 surrogate → permanent HTTP 400
 - [#674](https://github.com/deepseek-ai/deepseek-harness/discussions/674) leftover `.tmp` plaintext
 
-Cost meters / memory / marketplaces are saturated. Almost nobody repairs the JSONL.
+Default repair is dry-run. `--apply` writes `.bak.<utc>` first and never invents missing seqs.
 
 ## CLI
 
@@ -64,7 +87,7 @@ Agent tools after install: `session_scan` / `session_inspect` / `session_repair`
 
 Not a marketplace, not a token heatmap, not a memory plugin, not a Codex task store.
 
-DSH has **session id + optional same-session goal id**, not a Codex-style resumable task id. See [docs/LEARNING-TASKS.md](./docs/LEARNING-TASKS.md).
+DSH has **session id + optional same-session goal id**, not a Codex-style resumable task id. Copying the session ID is the closest everyday equivalent. See [docs/LEARNING-TASKS.md](./docs/LEARNING-TASKS.md).
 
 ## Docs
 
