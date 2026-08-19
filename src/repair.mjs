@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { decodeSessionBuffer, eventsSeqOk } from "./decode.mjs";
+import { randomUUID } from "node:crypto";
+import { decodeSessionBuffer, eventsSeqOk, missingMessageIds } from "./decode.mjs";
 import { backupThenWrite, encodeSession } from "./encode.mjs";
 import { interruptedTurnClosers } from "./closers.mjs";
 import { replaceLoneSurrogatesIn } from "./redact.mjs";
@@ -10,6 +11,7 @@ const DEFAULT_STEPS = {
   committedGap: true,
   dropDirtyTail: true,
   loneSurrogate: true,
+  messageId: true,
   closers: true,
 };
 
@@ -25,6 +27,29 @@ function firstGapIndex(events) {
     if (events[i].seq !== i) return i;
   }
   return -1;
+}
+
+/** Fill a non-empty id into user/message, assistant/message and tool/result
+ *  events that the official replay boundary would refuse. Never drops events. */
+function fillMissingMessageIds(events) {
+  const seqs = missingMessageIds(events);
+  if (seqs.length === 0) return { value: events, fixed: 0 };
+  const value = events.map((event) => {
+    const type = event.type;
+    if (type !== "user/message" && type !== "assistant/message" && type !== "tool/result") return event;
+    const data = event.data;
+    const record = data && typeof data === "object" ? data : undefined;
+    const message = type === "user/message" ? record : record?.message;
+    if (!message || typeof message !== "object" || (typeof message.id === "string" && message.id !== "")) {
+      return event;
+    }
+    const patched = { ...message, id: randomUUID() };
+    if (type === "user/message") {
+      return { ...event, data: { ...record, ...patched } };
+    }
+    return { ...event, data: { ...record, message: patched } };
+  });
+  return { value, fixed: seqs.length };
 }
 
 /**
@@ -72,7 +97,7 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
   }
 
   if (steps.tornTail && decoded.tornStart !== undefined) {
-    actions.push({ code: "torn-tail", detail: `dropped incomplete frame at byte ${decoded.tornStart}` });
+    actions.push({ code: "torn-tail", detail: "dropped incomplete frame at byte " + decoded.tornStart });
   }
 
   if (steps.overlap) {
@@ -88,7 +113,7 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
     }
     if (cut >= 0) {
       events = events.slice(0, cut);
-      actions.push({ code: "seq-overlap-replay", detail: `dropped replay tail from index ${cut}` });
+      actions.push({ code: "seq-overlap-replay", detail: "dropped replay tail from index " + cut });
     }
   }
 
@@ -99,10 +124,10 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
     if (hasTurnEnd && steps.committedGap) {
       const keepThrough = lastTurnEndIndex(events.slice(0, gapAt));
       events = keepThrough >= 0 ? events.slice(0, keepThrough + 1) : [];
-      actions.push({ code: "seq-gap-committed", detail: `truncated to last turn/end before gap at ${gapAt}` });
+      actions.push({ code: "seq-gap-committed", detail: "truncated to last turn/end before gap at " + gapAt });
     } else if (steps.dropDirtyTail) {
       events = events.slice(0, gapAt);
-      actions.push({ code: "seq-gap-tail", detail: `dropped dirty tail from index ${gapAt}` });
+      actions.push({ code: "seq-gap-tail", detail: "dropped dirty tail from index " + gapAt });
     }
   }
 
@@ -110,7 +135,15 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
     const swept = replaceLoneSurrogatesIn(events);
     if (swept.replaced > 0) {
       events = swept.value;
-      actions.push({ code: "lone-surrogate", detail: `replaced ${swept.replaced} lone-surrogate string(s)` });
+      actions.push({ code: "lone-surrogate", detail: "replaced " + swept.replaced + " lone-surrogate string(s)" });
+    }
+  }
+
+  if (steps.messageId) {
+    const filled = fillMissingMessageIds(events);
+    if (filled.fixed > 0) {
+      events = filled.value;
+      actions.push({ code: "message-missing-id", detail: "filled " + filled.fixed + " missing message id(s)" });
     }
   }
 
@@ -118,7 +151,7 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
     const closers = interruptedTurnClosers(events);
     if (closers.length > 0) {
       events = events.concat(closers);
-      actions.push({ code: "open-tail", detail: `appended ${closers.length} synthetic closer(s)` });
+      actions.push({ code: "open-tail", detail: "appended " + closers.length + " synthetic closer(s)" });
     }
   }
 

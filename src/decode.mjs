@@ -12,6 +12,7 @@ const HEALTH_RANK = [
   "seq-gap-committed",
   "unparsable-line",
   "seq-gap-tail",
+  "message-missing-id",
   "lone-surrogate",
   "torn-tail",
   "unknown-type",
@@ -42,6 +43,23 @@ function emptyResult({ headerClass, frames, tornStart, issues, failedFrames, hea
     lastSeq: -1,
     health,
   };
+}
+
+/** Official replay boundary: user/message, assistant/message and tool/result
+ *  must carry a non-empty message id, or the loader refuses the whole log. */
+export function missingMessageIds(events) {
+  const seqs = [];
+  for (const event of events) {
+    const type = event.type;
+    if (type !== "user/message" && type !== "assistant/message" && type !== "tool/result") continue;
+    const data = event.data;
+    const record = data && typeof data === "object" ? data : undefined;
+    const message = type === "user/message" ? record : record?.message;
+    if (!message || typeof message !== "object" || typeof message.id !== "string" || message.id === "") {
+      seqs.push(event.seq);
+    }
+  }
+  return seqs;
 }
 
 /**
@@ -159,7 +177,7 @@ export function decodeSessionBuffer(buf) {
   if (tornStart !== undefined) {
     health = worse(health, "torn-tail");
     if (!issues.some((i) => i.code === "torn-tail")) {
-      issues.push({ code: "torn-tail", message: `incomplete final frame at byte ${tornStart}` });
+      issues.push({ code: "torn-tail", message: "incomplete final frame at byte " + tornStart });
     }
   }
   if (countLoneSurrogates({ header: headerClass.header, events: finished.events }) > 0) {
@@ -171,7 +189,18 @@ export function decodeSessionBuffer(buf) {
   if (finished.unknownTypes.length > 0) {
     health = worse(health, "unknown-type");
     if (!issues.some((i) => i.code === "unknown-type")) {
-      issues.push({ code: "unknown-type", message: `unknown types: ${finished.unknownTypes.join(", ")}` });
+      issues.push({ code: "unknown-type", message: "unknown types: " + finished.unknownTypes.join(", ") });
+    }
+  }
+  const missingIds = missingMessageIds(finished.events);
+  if (missingIds.length > 0) {
+    health = worse(health, "message-missing-id");
+    if (!issues.some((i) => i.code === "message-missing-id")) {
+      issues.push({
+        code: "message-missing-id",
+        message: "events lack an identified message: " + missingIds.join(", "),
+        seqs: missingIds,
+      });
     }
   }
 

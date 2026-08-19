@@ -2,7 +2,7 @@
 
 Copy a session ID from the sidebar ⋯ menu, then paste it into a new chat so the new session can learn from the old one — the Codex-style “continue from this thread” move that stock DSH does not expose.
 
-Also repairs DeepSeek Harness sessions that refuse to load. 官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
+Also repairs DeepSeek Harness sessions that refuse to load — seq gap, torn zstd, lone surrogates, and events missing their message id. 官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
 
 > Compatible with `@deepseek-ai/dsh@0.1.0-rc.6`.
 
@@ -53,7 +53,7 @@ Real crash families from official Discussions:
 - [#436](https://github.com/deepseek-ai/deepseek-harness/discussions/436) lone UTF-16 surrogate → permanent HTTP 400
 - [#674](https://github.com/deepseek-ai/deepseek-harness/discussions/674) leftover `.tmp` plaintext
 
-Default repair is dry-run. `--apply` writes `.bak.<utc>` first and never invents missing seqs.
+Default repair is dry-run. `--apply` writes `.bak.<utc>` first, never invents missing seqs, and fills missing message ids without dropping events.
 
 ## CLI
 

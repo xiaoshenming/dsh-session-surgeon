@@ -2,7 +2,7 @@
 
 左侧会话 ⋯ → **复制会话 ID**，贴进新对话，让新会话接着学旧会话。这是 Codex 那种「拿线程 ID 继续聊」的用法；官方菜单只有重命名 / 分叉 / 归档，没有复制 ID。
 
-同时能修好打不开的 DeepSeek Harness 会话。官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
+同时能修好打不开的 DeepSeek Harness 会话（seq gap / torn zstd / 孤立代理字符 / 消息缺 ID）。官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
 
 ## 最常用：复制会话 ID
 
