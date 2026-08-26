@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { decodeSessionBuffer } from "./decode.mjs";
+import { decodeSessionBuffer, danglingToolCalls } from "./decode.mjs";
 import { interruptedTurnClosers } from "./closers.mjs";
 import { listSessionFiles, scanHeader } from "./scan.mjs";
 
@@ -58,6 +58,8 @@ export async function inspectEntry(entry) {
   if (decoded.tornStart !== undefined) flags.push("torn-tail");
   if (closers.length) flags.push("open-tail");
   if (decoded.packedRows) flags.push("packed-expanded");
+  const dangling = danglingToolCalls(decoded.events);
+  if (dangling.length) flags.push("dangling-tool-call");
   return {
     project: entry.project,
     sessionDir: entry.sessionDir,
@@ -86,6 +88,7 @@ export async function inspectEntry(entry) {
     wouldClose: closers.length > 0,
     flags,
     unknownTypes: decoded.unknownTypes,
+    danglingToolCalls: dangling,
   };
 }
 

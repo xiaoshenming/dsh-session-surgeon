@@ -16,6 +16,7 @@ const HEALTH_RANK = [
   "lone-surrogate",
   "torn-tail",
   "unknown-type",
+  "dangling-tool-call",
   "ok",
 ];
 
@@ -43,6 +44,27 @@ function emptyResult({ headerClass, frames, tornStart, issues, failedFrames, hea
     lastSeq: -1,
     health,
   };
+}
+
+/** Official abort path pairs every tool/call with a tool/result.
+ *  A call with no matching result survives load, then the next model request is 400.
+ *  Detection only — repair must not invent a result or callId. */
+export function danglingToolCalls(events) {
+  const results = new Set();
+  for (const event of events) {
+    if (event.type !== "tool/result") continue;
+    const id = event.data?.message?.source?.callId;
+    if (typeof id === "string") results.add(id);
+  }
+  const dangling = [];
+  for (const event of events) {
+    if (event.type !== "tool/call") continue;
+    const id = event.data?.callId;
+    if (typeof id !== "string" || id === "" || !results.has(id)) {
+      dangling.push({ seq: event.seq, callId: typeof id === "string" ? id : "" });
+    }
+  }
+  return dangling;
 }
 
 /** Official replay boundary: user/message, assistant/message and tool/result
@@ -190,6 +212,19 @@ export function decodeSessionBuffer(buf) {
     health = worse(health, "unknown-type");
     if (!issues.some((i) => i.code === "unknown-type")) {
       issues.push({ code: "unknown-type", message: "unknown types: " + finished.unknownTypes.join(", ") });
+    }
+  }
+  const dangling = danglingToolCalls(finished.events);
+  if (dangling.length > 0) {
+    health = worse(health, "dangling-tool-call");
+    if (!issues.some((i) => i.code === "dangling-tool-call")) {
+      const seqs = dangling.map((d) => d.seq);
+      issues.push({
+        code: "dangling-tool-call",
+        message: "tool/call without tool/result: " + seqs.join(", ") + " — next model request will 400",
+        seqs,
+        callIds: dangling.map((d) => d.callId),
+      });
     }
   }
   const missingIds = missingMessageIds(finished.events);

@@ -22,6 +22,9 @@ window.__ModuleLoader__.load({
       "seq-gap-committed": ["中间缺了一段", "官方因此打不开。可裁到缺口前最后一个完整回合。"],
       "seq-gap-tail": ["结尾不完整", "写入中断了。修复会丢掉脏尾巴。"],
       "unparsable-line": ["有一行读不懂", "修复会丢掉读不懂的尾巴。"],
+      "message-missing-id": ["消息缺 ID", "官方会整段拒读。修复只补 id，不丢内容。"],
+      "dangling-tool-call": ["悬空工具调用", "文件能打开，但下次模型请求会永久 400。只定位，不会编假 tool/result。"],
+      "unknown-type": ["未知事件类型", "会报告，不会删行，也不会盖 ignorable。"],
     };
     function settingsCopy() {
       return {

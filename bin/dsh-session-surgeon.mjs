@@ -10,7 +10,8 @@ import { formatIndexText, formatInspectText, formatRepairText, formatScanText } 
 
 function usage() {
   console.log(`dsh-session-surgeon — repair DeepSeek Harness sessions that refuse to load
-把打不开的 DSH 会话修回来（seq gap / torn zstd / lone surrogate）
+把打不开的 DSH 会话修回来（seq gap / torn zstd / lone surrogate / missing message id）
+inspect 会警告悬空 tool/call（无对应 tool/result），但不会编假结果
 
 Usage / 用法:
   dsh-session-surgeon scan [root] [--format json|text]

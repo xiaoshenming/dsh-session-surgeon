@@ -82,7 +82,7 @@ async function registerTools(ctx) {
     defineTool({
       name: "session_inspect",
       description:
-        "Decode every zstd frame of one session, expand packed rows, and report seq gaps / torn tails / open turns. Does not include user message bodies.",
+        "Decode every zstd frame of one session, expand packed rows, and report seq gaps / torn tails / missing message ids / dangling tool/call (no matching tool/result). Does not include user message bodies. Does not invent missing tool results.",
       parameters: {
         id: { type: "string", required: true, description: "Session id or unique prefix." },
         root: { type: "string", description: "Session root. Defaults to ~/.dsh/sessions." },
