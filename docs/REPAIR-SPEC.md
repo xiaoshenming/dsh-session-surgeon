@@ -106,7 +106,7 @@
 1. 再跑一遍展开 + seq 连续检查，失败则拒绝 `--apply`
 2. 写 header 帧
 3. 其余事件按批打成 zstd 帧（week 1 可以「每 N 条一帧」；不必复刻 200ms 窗口）
-4. 原子替换：写 `session.jsonl.zstd.tmp` → fsync → rename
+4. 原子替换：写 `session.jsonl.zstd.tmp` → fsync（Windows 上只读句柄的 `EPERM` 视为 best-effort，不中止 `--apply`）→ rename
 
 ---
 
