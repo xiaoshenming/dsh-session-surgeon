@@ -44,7 +44,7 @@ dsh plugin --profile web add "github:xiaoshenming/dsh-session-surgeon#main"
 npx --yes github:xiaoshenming/dsh-session-surgeon scan
 npx --yes github:xiaoshenming/dsh-session-surgeon inspect <id>
 npx --yes github:xiaoshenming/dsh-session-surgeon repair <id>          # 默认 dry-run
-npx --yes github:xiaoshenming/dsh-session-surgeon repair <id> --apply  # 先写 .bak.<utc>
+npx --yes github:xiaoshenming/dsh-session-surgeon repair <id> --apply  # 先写 .bak.<utc>（Windows 上备份文件只读 fsync 的 EPERM 不再中止 apply）
 ```
 
 DSH **没有** Codex 那种任务 ID。能 resume 的是 session。复制会话 ID 是日常最接近的做法。详见 [docs/LEARNING-TASKS.md](./docs/LEARNING-TASKS.md)。
