@@ -48,6 +48,23 @@ export async function encodeSession({
   return Buffer.concat(frames);
 }
 
+/**
+ * fsync a handle. Windows (and some network FS) reject fsync on a
+ * read-only handle with EPERM — that used to abort `--apply` after
+ * the `.bak.<utc>` copy already succeeded (#4178 / #1452).
+ */
+export async function fsyncBestEffort(handle) {
+  try {
+    await handle.sync();
+  } catch (error) {
+    const code = error?.code;
+    if (code === "EPERM" || code === "ENOTSUP" || code === "EINVAL") {
+      return;
+    }
+    throw error;
+  }
+}
+
 /** Write `dest.tmp`, fsync, then rename over `dest`. */
 export async function atomicWrite(dest, buf) {
   const tmp = `${dest}.tmp`;
@@ -58,7 +75,7 @@ export async function atomicWrite(dest, buf) {
   );
   try {
     await handle.writeFile(buf);
-    await handle.sync();
+    await fsyncBestEffort(handle);
   } finally {
     await handle.close();
   }
@@ -76,11 +93,19 @@ export async function backupThenWrite(dest, buf, now = new Date()) {
     bak = `${dest}.bak.${stamp}.${randomBytes(3).toString("hex")}`;
   }
   await copyFile(dest, bak);
-  const copied = await open(bak, constants.O_RDONLY);
+  // Prefer a writable handle: Windows FileHandle.sync() on O_RDONLY is EPERM.
   try {
-    await copied.sync();
-  } finally {
-    await copied.close();
+    const copied = await open(bak, constants.O_RDWR);
+    try {
+      await fsyncBestEffort(copied);
+    } finally {
+      await copied.close();
+    }
+  } catch (error) {
+    const code = error?.code;
+    if (code !== "EPERM" && code !== "EACCES") {
+      throw error;
+    }
   }
   await atomicWrite(dest, buf);
 }
