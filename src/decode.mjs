@@ -36,6 +36,7 @@ function emptyResult({ headerClass, frames, tornStart, issues, failedFrames, hea
     frames,
     tornStart,
     events: [],
+    overflow: [],
     issues,
     logicalLines: 0,
     packedRows: 0,
@@ -245,12 +246,14 @@ export function decodeSessionBuffer(buf) {
     frames,
     tornStart,
     events: finished.events,
+    overflow: finished.overflow ?? [],
     issues,
     logicalLines: finished.logicalLines,
     packedRows: finished.packedRows,
     failedFrames,
     unknownTypes: finished.unknownTypes,
     lastSeq: finished.events.length === 0 ? -1 : finished.events[finished.events.length - 1].seq,
+    overflowEvents: (finished.overflow ?? []).length,
     health,
   };
 }

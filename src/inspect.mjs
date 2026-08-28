@@ -77,6 +77,8 @@ export async function inspectEntry(entry) {
     logicalLines: decoded.logicalLines,
     logicalEvents: decoded.events.length,
     lastSeq: decoded.lastSeq,
+    overflowEvents: decoded.overflowEvents ?? decoded.overflow?.length ?? 0,
+    overflowLastSeq: decoded.overflow?.length ? decoded.overflow.at(-1).seq : undefined,
     packedRows: decoded.packedRows,
     badLines: decoded.issues.filter((i) => i.code === "unparsable-line").length,
     types: typeHistogram(decoded.events),

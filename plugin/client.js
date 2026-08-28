@@ -19,7 +19,7 @@ window.__ModuleLoader__.load({
       "header-frame-corrupt": ["文件头损坏", "官方会拒绝打开。通常只能找备份。"],
       "no-zstd-frame": ["空文件", "里面没有完整数据。"],
       "failed-middle-frame": ["中间一帧坏了", "工具不会瞎补，避免越修越坏。"],
-      "seq-gap-committed": ["中间缺了一段", "官方因此打不开。可裁到缺口前最后一个完整回合。"],
+      "seq-gap-committed": ["中间缺了一段", "官方因此打不开。若是崩溃恢复插进来的短闭包，会丢掉那几条、保住后面还在写的内容；否则裁到缺口前最后一个完整回合。"],
       "seq-gap-tail": ["结尾不完整", "写入中断了。修复会丢掉脏尾巴。"],
       "unparsable-line": ["有一行读不懂", "修复会丢掉读不懂的尾巴。"],
       "message-missing-id": ["消息缺 ID", "官方会整段拒读。修复只补 id，不丢内容。"],

@@ -4,12 +4,14 @@ import { decodeSessionBuffer, eventsSeqOk, missingMessageIds } from "./decode.mj
 import { backupThenWrite, encodeSession } from "./encode.mjs";
 import { interruptedTurnClosers } from "./closers.mjs";
 import { replaceLoneSurrogatesIn } from "./redact.mjs";
+import { stitchLiveWriterTail } from "./stitch.mjs";
 
 const DEFAULT_STEPS = {
   tornTail: true,
   overlap: true,
   committedGap: true,
   dropDirtyTail: true,
+  liveWriter: true,
   loneSurrogate: true,
   messageId: true,
   closers: true,
@@ -76,15 +78,35 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
   }
 
   let events = decoded.events.map((event) => event);
+  const overflow = Array.isArray(decoded.overflow) ? decoded.overflow : [];
+  let stitchedLive = false;
 
-  if (decoded.health === "seq-gap-committed" && steps.committedGap) {
+  if (steps.liveWriter) {
+    const stitched = stitchLiveWriterTail(events, overflow);
+    if (stitched) {
+      events = stitched.events;
+      stitchedLive = true;
+      actions.push({
+        code: "live-writer-tail",
+        detail:
+          "dropped " +
+          stitched.droppedClosers +
+          " crash-recovery closer(s) and kept " +
+          stitched.keptLive +
+          " live-writer event(s) from seq " +
+          stitched.stitchSeq,
+      });
+    }
+  }
+
+  if (!stitchedLive && decoded.health === "seq-gap-committed" && steps.committedGap) {
     const keepThrough = lastTurnEndIndex(events);
     events = keepThrough >= 0 ? events.slice(0, keepThrough + 1) : events;
     actions.push({
       code: "seq-gap-committed",
       detail: "truncated to last turn/end before the committed gap",
     });
-  } else if (decoded.health === "seq-gap-tail" && steps.dropDirtyTail) {
+  } else if (!stitchedLive && decoded.health === "seq-gap-tail" && steps.dropDirtyTail) {
     actions.push({
       code: "seq-gap-tail",
       detail: "rewrite committed prefix, dropping the on-disk dirty tail",

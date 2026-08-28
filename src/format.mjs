@@ -29,7 +29,7 @@ export function formatInspectText(report) {
     `parent    ${report.parent ?? "-"}`,
     `depth     ${report.depth ?? "-"}`,
     `frames    ${report.frames}  failed=${report.failedFrames}  torn=${report.torn ? "yes" : "no"}`,
-    `events    ${report.logicalEvents}  lastSeq=${report.lastSeq}  packedRows=${report.packedRows}`,
+    `events    ${report.logicalEvents}  lastSeq=${report.lastSeq}  packedRows=${report.packedRows}  overflow=${report.overflowEvents ?? 0}`,
     `turns     ${report.turns?.count ?? 0}  open=${report.turns?.open ? "yes" : "no"}  wouldClose=${report.wouldClose}`,
     `goal      ${report.goal ? report.goal.id + " / " + report.goal.phase : "-"}`,
     `flags     ${(report.flags ?? []).join(", ") || "-"}`,

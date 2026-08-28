@@ -26,7 +26,7 @@
 | `torn-tail` | 最后一帧不完整 | load 时自动截断+closer | 可离线做同样的事（dsh 起不来时） |
 | `failed-middle-frame` | 中间完整帧解压失败 | 整文件拒载 | 不自动修；报告帧号 |
 | `unparsable-line` | 某行不是 JSON / packed 行畸形 | 若之后有 turn/end → 拒载 | 丢掉该行及之后，或停在上一 turn/end |
-| `seq-gap-committed` | 展开后 seq 不连续，且之后有 turn/end | **拒载**（#1497/#1586） | 主修复路径 |
+| `seq-gap-committed` | 展开后 seq 不连续，且之后有 turn/end | **拒载**（#1497/#1586） | 主修复路径；若能证明是崩溃恢复闭包 vs 还活着的写者，丢掉闭包、保留 live 分支 |
 | `seq-overlap-replay` | 同一 seq 出现两次（崩溃重放） | 表现为 gap/overlap | 保留先写的，丢掉重放尾 |
 | `lone-surrogate` | 用户文本含孤立 UTF-16 代理 | 可能永久 HTTP 400（#436） | 剥掉或替换 U+FFFD |
 | `orphan-tmp` | 旁边有 `.tmp` | 不管 | 列出；不自动当正本 |
@@ -68,9 +68,10 @@
 1. 找到第一个 `event.seq !== index` 的位置 `i`
 2. 向后看是否还有 `turn/end`
 3. **有**（committed gap）：
-   - 回退到 `i` 之前最后一个 `turn/end`（含这条）
-   - 丢掉之后全部事件
-   - 这是「保住已经提交的轮次，放弃崩溃后的脏尾」
+   - 先看 committed 前缀是否以官方崩溃恢复闭包结尾（`interrupted-tool-result-*` / `turn/end interrupted` / 可选 `session/end-seed`），且 overflow 从同一 seq 连续续写（还活着的写者，#1586）：
+     - **丢掉那几条合成闭包，保留 live 分支**。seq 已经对得上，不发明序号。
+   - 否则回退到 `i` 之前最后一个 `turn/end`（含这条），丢掉之后全部事件
+   - 认不出 live 写者时，这是「保住已经提交的轮次，放弃崩溃后的脏尾」
 4. **没有**（只是尾巴乱）：
    - 丢掉 `i` 及之后
    - 走 2.5 补 closer

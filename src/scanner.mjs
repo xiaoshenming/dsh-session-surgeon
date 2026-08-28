@@ -5,9 +5,14 @@ import { isIgnorable, isKnownEventType } from "./known-types.mjs";
  * Incremental JSONL event scanner aligned with official SessionLogScanner.
  * Empty lines are unparsable committed records. A complete frame that does
  * not end on a newline is a torn JSONL record inside a complete frame.
+ *
+ * After the first seq defect, later rows are kept in `overflow` (not
+ * discarded) so repair can recognize a live writer that continued after
+ * synthetic crash-recovery closers (#1586 / #1497).
  */
 export class SessionLogScanner {
   events = [];
+  overflow = [];
   issues = [];
   unknownTypes = [];
   packedRows = 0;
@@ -80,6 +85,7 @@ export class SessionLogScanner {
           line: this.eventLine,
         });
       }
+      for (const event of decoded) this.overflow.push(event);
       return;
     }
     const rowStart = this.events.length;
@@ -94,6 +100,7 @@ export class SessionLogScanner {
           line: this.eventLine,
         };
         this.issues.push(this.issue);
+        for (const item of decoded) this.overflow.push(item);
         if (committed) {
           this.issues.push({
             code: "seq-gap-committed",
@@ -116,6 +123,7 @@ export class SessionLogScanner {
       inputBytes: this.inputBytes,
       committedBytes: this.committedBytes,
       eventCount: this.events.length,
+      overflowCount: this.overflow.length,
     };
   }
 
@@ -123,6 +131,7 @@ export class SessionLogScanner {
     this.finished = true;
     return {
       events: this.events,
+      overflow: this.overflow,
       issues: this.issues,
       unknownTypes: this.unknownTypes,
       packedRows: this.packedRows,
