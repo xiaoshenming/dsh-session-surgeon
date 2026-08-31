@@ -27,6 +27,7 @@
 | `failed-middle-frame` | 中间完整帧解压失败 | 整文件拒载 | 不自动修；报告帧号 |
 | `unparsable-line` | 某行不是 JSON / packed 行畸形 | 若之后有 turn/end → 拒载 | 丢掉该行及之后，或停在上一 turn/end |
 | `seq-gap-committed` | 展开后 seq 不连续，且之后有 turn/end | **拒载**（#1497/#1586） | 主修复路径；若能证明是崩溃恢复闭包 vs 还活着的写者，丢掉闭包、保留 live 分支 |
+| `packed-overlap-suffix` | packed 行从已提交 seq 往回重叠、后缀连续 | **拒载**（#5151） | 丢掉已提交前缀成员，收下尚未提交的后缀 |
 | `seq-overlap-replay` | 同一 seq 出现两次（崩溃重放） | 表现为 gap/overlap | 保留先写的，丢掉重放尾 |
 | `lone-surrogate` | 用户文本含孤立 UTF-16 代理 | 可能永久 HTTP 400（#436） | 剥掉或替换 U+FFFD |
 | `orphan-tmp` | 旁边有 `.tmp` | 不管 | 列出；不自动当正本 |
@@ -72,6 +73,7 @@
      - **丢掉那几条合成闭包，保留 live 分支**。seq 已经对得上，不发明序号。
    - 否则回退到 `i` 之前最后一个 `turn/end`（含这条），丢掉之后全部事件
    - 认不出 live 写者时，这是「保住已经提交的轮次，放弃崩溃后的脏尾」
+   - packed 行从已提交 seq 往回重叠、但连续接到当前游标（#5151）：**丢掉已经提交的前缀成员，收下尚未提交的后缀**。序号本来就在磁盘上，不是发明 seq。后面如果还有真正的空洞，仍然按上面裁切。
 4. **没有**（只是尾巴乱）：
    - 丢掉 `i` 及之后
    - 走 2.5 补 closer
@@ -113,7 +115,7 @@
 
 ## 3. compact / export（不是 repair）
 
-- `compact --keep-last-turns N`：前面的 turn 收成摘要，保留最近 N 个完整 turn。产出必须仍是合法 session 文件。
+- `compact --keep-last-turns N`：前面的 turn 收成摘要，保留最近 N 个完整 turn。产出必须仍是合法 session 文件。seq 不连续 / 官方会拒读时 refuse，不要在第二个写者还活着时重排 seq。先停写者、先 repair。
 - 切片：每个切片自己有 header，seq 从 0 重排，`seedLength` / `parentSession` 视情况填写。
 - `export --redact`：默认剥 `sk-*`、PEM、绝对 home 路径；`--no-redact` 必须显式。
 
