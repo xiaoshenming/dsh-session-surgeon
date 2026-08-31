@@ -80,6 +80,7 @@ export async function inspectEntry(entry) {
     overflowEvents: decoded.overflowEvents ?? decoded.overflow?.length ?? 0,
     overflowLastSeq: decoded.overflow?.length ? decoded.overflow.at(-1).seq : undefined,
     packedRows: decoded.packedRows,
+    packedOverlapKept: decoded.packedOverlapKept ?? 0,
     badLines: decoded.issues.filter((i) => i.code === "unparsable-line").length,
     types: typeHistogram(decoded.events),
     turns,
