@@ -1,5 +1,5 @@
 /**
- * Session event vocabulary pinned to @deepseek-ai/dsh-session 0.1.0-rc.6.
+ * Session event vocabulary aligned with the installed @deepseek-ai/dsh-session catalog.
  * Unknown types without the envelope `ignorable: true` marker are reported,
  * not dropped.
  */
@@ -36,6 +36,10 @@ export const KNOWN_SESSION_EVENT_TYPES = new Set([
   "step/end",
   "step/start",
   "subagent/descriptor",
+  "team/member",
+  "team/message/delivered",
+  "team/message/queued",
+  "team/task",
   "todo/write",
   "tool-workflow/agent-end",
   "tool-workflow/agent-start",
