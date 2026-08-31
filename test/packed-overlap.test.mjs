@@ -144,3 +144,17 @@ test("non-contiguous packed overlap is still a seq gap", async () => {
   assert.equal(decoded.packedOverlapKept ?? 0, 0);
   assert.ok(decoded.events.every((event, i) => event.seq === i));
 });
+
+test("mismatched packed overlap prefix is a seq gap, not a suffix keep", async () => {
+  const prefix = prefixThrough(5);
+  const overlap = packedRow(4, ["X", "Y", "c", "d", "e", "f"]);
+  const rest = [
+    ev("step/end", 10, { turn: 1, step: 1 }),
+    ev("turn/end", 11, { turn: 1, reason: { kind: "completed" } }),
+  ];
+  const buf = await writeRaw([...prefix, overlap, ...rest]);
+  const decoded = decodeSessionBuffer(buf);
+  assert.ok(decoded.health === "seq-gap-committed" || decoded.health === "seq-gap-tail");
+  assert.equal(decoded.packedOverlapKept ?? 0, 0);
+  assert.ok(!planRepair(decoded).actions.some((a) => a.code === "packed-overlap-suffix"));
+});

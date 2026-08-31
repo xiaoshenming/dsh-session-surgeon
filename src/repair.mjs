@@ -74,6 +74,15 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
   if (headerCode === "retired-fields") {
     return { actions, events: [], header, mustWrite: false, refuse: "header carries retired policy fields" };
   }
+  if (decoded.health === "newer-format-ranges") {
+    return {
+      actions,
+      events: decoded.events.slice(),
+      header,
+      mustWrite: false,
+      refuse: "newer harness compressed sourceEventSeqs ranges — upgrade the harness, do not rewrite as v0",
+    };
+  }
   if (decoded.failedFrames > 0) {
     return { actions, events: decoded.events.slice(), header, mustWrite: false, refuse: "middle frame failed decompression" };
   }

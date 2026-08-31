@@ -53,7 +53,7 @@ Real crash families from official Discussions:
 - [#436](https://github.com/deepseek-ai/deepseek-harness/discussions/436) lone UTF-16 surrogate → permanent HTTP 400
 - [#674](https://github.com/deepseek-ai/deepseek-harness/discussions/674) leftover `.tmp` plaintext
 
-Default repair is dry-run. `--apply` writes `.bak.<utc>` first, never invents missing seqs, and fills missing message ids without dropping events. If a crash-recovery closer collided with a still-live writer (#1586), repair drops those synthetic closers and keeps the live tail instead of truncating at the first gap. A packed chunk row that overlaps already-committed seqs but continues through the cursor (#5151) keeps the uncommitted suffix. Compact refuses an unloadable file — repair first, with all writers stopped.
+Default repair is dry-run. `--apply` writes `.bak.<utc>` first, never invents missing seqs, and fills missing message ids without dropping events. If a crash-recovery closer collided with a still-live writer (#1586), repair drops those synthetic closers and keeps the live tail instead of truncating at the first gap. A packed chunk row that overlaps already-committed seqs but continues through the cursor (#5151) keeps the uncommitted suffix. Compact refuses an unloadable file — repair first, with all writers stopped. Alpha compressed `sourceEventSeqs` ranges (#5160) are reported as a newer format, not rewritten into v0.
 
 ## CLI
 
@@ -96,6 +96,7 @@ DSH has **session id + optional same-session goal id**, not a Codex-style resuma
 - [docs/REPAIR-SPEC.md](./docs/REPAIR-SPEC.md) — repair steps aligned with the official loader
 - [docs/LEARNING-TASKS.md](./docs/LEARNING-TASKS.md) — why there is no Codex task id
 - [docs/IMPLEMENTATION-CONTRACT.md](./docs/IMPLEMENTATION-CONTRACT.md) — multi-agent implementation contract
+- [CHANGELOG.md](./CHANGELOG.md) — user-facing changes
 
 ## Safety
 

@@ -2,12 +2,16 @@ import { decodeFrames, scanZstdFrames } from "./zstd-frames.mjs";
 import { classifyHeader } from "./header.mjs";
 import { countLoneSurrogates } from "./redact.mjs";
 import { SessionLogScanner, isExactHeaderRecord } from "./scanner.mjs";
+import { hasCompressedSeqRanges } from "./provenance.mjs";
+import { danglingToolCalls, missingMessageIds } from "./integrity.mjs";
+export { danglingToolCalls, missingMessageIds } from "./integrity.mjs";
 
 const HEALTH_RANK = [
   "header-frame-corrupt",
   "header-parse-error",
   "foreign-version",
   "retired-fields",
+  "newer-format-ranges",
   "failed-middle-frame",
   "seq-gap-committed",
   "unparsable-line",
@@ -41,49 +45,13 @@ function emptyResult({ headerClass, frames, tornStart, issues, failedFrames, hea
     issues,
     logicalLines: 0,
     packedRows: 0,
+    packedOverlapKept: 0,
+    overflowEvents: 0,
     failedFrames,
     unknownTypes,
     lastSeq: -1,
     health,
   };
-}
-
-/** Official abort path pairs every tool/call with a tool/result.
- *  A call with no matching result survives load, then the next model request is 400.
- *  Detection only — repair must not invent a result or callId. */
-export function danglingToolCalls(events) {
-  const results = new Set();
-  for (const event of events) {
-    if (event.type !== "tool/result") continue;
-    const id = event.data?.message?.source?.callId;
-    if (typeof id === "string") results.add(id);
-  }
-  const dangling = [];
-  for (const event of events) {
-    if (event.type !== "tool/call") continue;
-    const id = event.data?.callId;
-    if (typeof id !== "string" || id === "" || !results.has(id)) {
-      dangling.push({ seq: event.seq, callId: typeof id === "string" ? id : "" });
-    }
-  }
-  return dangling;
-}
-
-/** Official replay boundary: user/message, assistant/message and tool/result
- *  must carry a non-empty message id, or the loader refuses the whole log. */
-export function missingMessageIds(events) {
-  const seqs = [];
-  for (const event of events) {
-    const type = event.type;
-    if (type !== "user/message" && type !== "assistant/message" && type !== "tool/result") continue;
-    const data = event.data;
-    const record = data && typeof data === "object" ? data : undefined;
-    const message = type === "user/message" ? record : record?.message;
-    if (!message || typeof message !== "object" || typeof message.id !== "string" || message.id === "") {
-      seqs.push(event.seq);
-    }
-  }
-  return seqs;
 }
 
 /**
@@ -209,6 +177,16 @@ export function decodeSessionBuffer(buf) {
     health = worse(health, "lone-surrogate");
     if (!issues.some((i) => i.code === "lone-surrogate")) {
       issues.push({ code: "lone-surrogate", message: "isolated UTF-16 surrogate in payload" });
+    }
+  }
+  if (hasCompressedSeqRanges(finished.events) || hasCompressedSeqRanges(finished.overflow ?? [])) {
+    health = worse(health, "newer-format-ranges");
+    if (!issues.some((i) => i.code === "newer-format-ranges")) {
+      issues.push({
+        code: "newer-format-ranges",
+        message:
+          "sourceEventSeqs uses compressed [start,end] ranges written by a newer harness (still labeled v0); upgrade the harness — do not treat this as a corrupt seq gap",
+      });
     }
   }
   if (finished.unknownTypes.length > 0) {

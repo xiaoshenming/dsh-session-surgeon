@@ -1,0 +1,33 @@
+# Changelog
+
+All notable user-facing changes to dsh-session-surgeon. Dates are UTC.
+
+## Unreleased
+
+### Added
+
+- Packed-row overlap suffix (`packed-overlap-suffix`, [#5151](https://github.com/deepseek-ai/deepseek-harness/discussions/5151)): when a packed chunk row starts before the committed cursor but continues through it **and the overlapping prefix is identical to already-committed events**, drop that prefix and keep the uncommitted suffix. Seq numbers already exist on disk — nothing is invented. A mismatched prefix is still a seq gap.
+- Crash-recovery vs live writer (`live-writer-tail`, [#1586](https://github.com/deepseek-ai/deepseek-harness/discussions/1586) / [#1497](https://github.com/deepseek-ai/deepseek-harness/discussions/1497)): drop official `interrupted-tool-result-*` / `turn/end interrupted` closers when overflow resumes at the same seq with real work.
+- Detect Alpha compressed `sourceEventSeqs` ranges (`newer-format-ranges`, [#5160](https://github.com/deepseek-ai/deepseek-harness/discussions/5160) / [#4910](https://github.com/deepseek-ai/deepseek-harness/discussions/4910)). Report a format mismatch and **refuse** to expand ranges into the old v0 layout.
+
+### Changed
+
+- Compact refuses unloadable files (seq gap / failed frames / newer format). Repair first, with all writers stopped — compact itself does not create seq holes, but a second live writer after rewrite will.
+- Official `team/*` event types are in the known catalog so healthy 0.1.2 sessions are not flagged `unknown-type`.
+- Inspect keeps overflow after the first seq defect instead of pretending later rows do not exist.
+
+### Fixed
+
+- Windows `--apply` no longer aborts with `EPERM` when fsyncing the read-only `.bak.<utc>` handle ([#4178](https://github.com/deepseek-ai/deepseek-harness/discussions/4178) / [#1452](https://github.com/deepseek-ai/deepseek-harness/discussions/1452)).
+
+### Not in scope (still refuse / warn only)
+
+- Empty `callId` / dangling `tool/call`: inspect warns, repair does not invent a `tool/result`.
+- Unknown plugin event types: report `unknown-type`, do not stamp `ignorable`.
+- Web Chat `received more than one start Match`: frontend fold, not a disk defect.
+- Arbitrary dual-write branch picking when the packed/live-writer signatures do not match.
+
+## 0.1.0
+
+- First public plugin: copy session ID, scan / inspect / dry-run repair / apply / compact / export.
+- Host tools `session_scan` / `session_inspect` / `session_repair`.

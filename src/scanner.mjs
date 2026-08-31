@@ -11,9 +11,18 @@ import { isIgnorable, isKnownEventType } from "./known-types.mjs";
  * synthetic crash-recovery closers (#1586 / #1497).
  *
  * Packed storage rows that start before the cursor but reach it
- * contiguously keep the uncommitted suffix (#5151). That is not
- * inventing seqs — those members already exist on disk.
+ * contiguously keep the uncommitted suffix (#5151) only when the
+ * overlapping prefix is byte-equal to already-committed events.
  */
+function sameCommittedEvent(left, right) {
+  if (!left || !right) return false;
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
+}
+
 export class SessionLogScanner {
   events = [];
   overflow = [];
@@ -97,16 +106,20 @@ export class SessionLogScanner {
     const expected = this.events.length;
     const firstSeq = decoded[0]?.seq;
     const lastSeq = decoded.at(-1)?.seq;
+    const skip = Number.isSafeInteger(firstSeq) ? expected - firstSeq : -1;
     const packedOverlap =
       decoded.length > 1 &&
       Number.isSafeInteger(firstSeq) &&
       Number.isSafeInteger(lastSeq) &&
       firstSeq < expected &&
       lastSeq >= expected &&
-      decoded.every((event, i) => event.seq === firstSeq + i);
+      skip > 0 &&
+      skip < decoded.length &&
+      decoded.every((event, i) => event.seq === firstSeq + i) &&
+      decoded.slice(0, skip).every((event, i) => sameCommittedEvent(this.events[firstSeq + i], event));
 
     if (packedOverlap) {
-      decoded = decoded.slice(expected - firstSeq);
+      decoded = decoded.slice(skip);
     }
 
     for (const event of decoded) {
