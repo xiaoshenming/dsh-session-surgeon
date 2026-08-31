@@ -9,6 +9,10 @@ import { isIgnorable, isKnownEventType } from "./known-types.mjs";
  * After the first seq defect, later rows are kept in `overflow` (not
  * discarded) so repair can recognize a live writer that continued after
  * synthetic crash-recovery closers (#1586 / #1497).
+ *
+ * Packed storage rows that start before the cursor but reach it
+ * contiguously keep the uncommitted suffix (#5151). That is not
+ * inventing seqs — those members already exist on disk.
  */
 export class SessionLogScanner {
   events = [];
@@ -16,6 +20,7 @@ export class SessionLogScanner {
   issues = [];
   unknownTypes = [];
   packedRows = 0;
+  packedOverlapKept = 0;
   eventLine = 0;
   inputBytes = 0;
   committedBytes = 0;
@@ -89,14 +94,29 @@ export class SessionLogScanner {
       return;
     }
     const rowStart = this.events.length;
+    const expected = this.events.length;
+    const firstSeq = decoded[0]?.seq;
+    const lastSeq = decoded.at(-1)?.seq;
+    const packedOverlap =
+      decoded.length > 1 &&
+      Number.isSafeInteger(firstSeq) &&
+      Number.isSafeInteger(lastSeq) &&
+      firstSeq < expected &&
+      lastSeq >= expected &&
+      decoded.every((event, i) => event.seq === firstSeq + i);
+
+    if (packedOverlap) {
+      decoded = decoded.slice(expected - firstSeq);
+    }
+
     for (const event of decoded) {
       if (event.seq !== this.events.length) {
-        const expected = this.events.length;
+        const expectedNow = this.events.length;
         this.events.length = rowStart;
         const committed = decoded.some((candidate) => candidate.type === "turn/end");
         this.issue = {
           code: committed ? "seq-gap-committed" : "seq-gap-tail",
-          message: `seq gap in committed region at line ${this.eventLine} (expected ${expected}, got ${event.seq})`,
+          message: `seq gap in committed region at line ${this.eventLine} (expected ${expectedNow}, got ${event.seq})`,
           line: this.eventLine,
         };
         this.issues.push(this.issue);
@@ -114,6 +134,14 @@ export class SessionLogScanner {
       if (!isKnownEventType(event) && !isIgnorable(event) && typeof event.type === "string") {
         if (!this.unknownTypes.includes(event.type)) this.unknownTypes.push(event.type);
       }
+    }
+    if (packedOverlap) {
+      this.packedOverlapKept += decoded.length;
+      this.issues.push({
+        code: "packed-overlap-suffix",
+        message: `packed row at line ${this.eventLine} overlapped already-committed seqs; kept ${decoded.length} event(s) from seq ${expected}`,
+        line: this.eventLine,
+      });
     }
     this.committedBytes = endByte;
   }
@@ -135,6 +163,7 @@ export class SessionLogScanner {
       issues: this.issues,
       unknownTypes: this.unknownTypes,
       packedRows: this.packedRows,
+      packedOverlapKept: this.packedOverlapKept,
       logicalLines: this.eventLine,
       leftover: this.fragmentBytes > 0,
     };
