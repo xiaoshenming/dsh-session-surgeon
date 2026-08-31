@@ -6,6 +6,8 @@ All notable user-facing changes to dsh-session-surgeon. Dates are UTC.
 
 ### Added
 
+- Agent skill `dsh-session-surgeon-update`: saying **更新插件** (or 自我迭代 / 逛逛社区) runs the community-scan → code → changelog → reply → px-push loop without restating the steps.
+- Inspect flags empty `tool_calls[].id` / empty `tool/call.callId` as `empty-tool-call-id` ([#5182](https://github.com/deepseek-ai/deepseek-harness/discussions/5182)). Repair still **does not invent** an id — the engine must filter on replay.
 - Packed-row overlap suffix (`packed-overlap-suffix`, [#5151](https://github.com/deepseek-ai/deepseek-harness/discussions/5151)): when a packed chunk row starts before the committed cursor but continues through it **and the overlapping prefix is identical to already-committed events**, drop that prefix and keep the uncommitted suffix. Seq numbers already exist on disk — nothing is invented. A mismatched prefix is still a seq gap.
 - Crash-recovery vs live writer (`live-writer-tail`, [#1586](https://github.com/deepseek-ai/deepseek-harness/discussions/1586) / [#1497](https://github.com/deepseek-ai/deepseek-harness/discussions/1497)): drop official `interrupted-tool-result-*` / `turn/end interrupted` closers when overflow resumes at the same seq with real work.
 - Detect Alpha compressed `sourceEventSeqs` ranges (`newer-format-ranges`, [#5160](https://github.com/deepseek-ai/deepseek-harness/discussions/5160) / [#4910](https://github.com/deepseek-ai/deepseek-harness/discussions/4910)). Report a format mismatch and **refuse** to expand ranges into the old v0 layout.
@@ -13,7 +15,7 @@ All notable user-facing changes to dsh-session-surgeon. Dates are UTC.
 ### Changed
 
 - Compact refuses unloadable files (seq gap / failed frames / newer format). Repair first, with all writers stopped — compact itself does not create seq holes, but a second live writer after rewrite will.
-- Official `team/*` event types are in the known catalog so healthy 0.1.2 sessions are not flagged `unknown-type`.
+- Official `team/*`, `model/selection`, `session-log-deepseek/delivery-accepted`, and `subagent/model-selection-policy` event types are in the known catalog so healthy current sessions are not flagged `unknown-type`.
 - Inspect keeps overflow after the first seq defect instead of pretending later rows do not exist.
 
 ### Fixed
@@ -22,7 +24,7 @@ All notable user-facing changes to dsh-session-surgeon. Dates are UTC.
 
 ### Not in scope (still refuse / warn only)
 
-- Empty `callId` / dangling `tool/call`: inspect warns, repair does not invent a `tool/result`.
+- Empty `callId` / empty `tool_calls[].id` / dangling `tool/call`: inspect warns (`empty-tool-call-id` / `dangling-tool-call`), repair does not invent a `tool/result` or callId.
 - Unknown plugin event types: report `unknown-type`, do not stamp `ignorable`.
 - Web Chat `received more than one start Match`: frontend fold, not a disk defect.
 - Arbitrary dual-write branch picking when the packed/live-writer signatures do not match.

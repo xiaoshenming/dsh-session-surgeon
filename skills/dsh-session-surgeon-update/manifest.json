@@ -1,0 +1,26 @@
+{
+  "name": "dsh-session-surgeon-update",
+  "version": "1.0.0",
+  "owner": "xiaoshenming",
+  "status": "local",
+  "maturity_tier": "production-lite",
+  "lifecycle_stage": "skill",
+  "context_budget_tier": "standard",
+  "target_platforms": [
+    "deepseek-harness",
+    "agent-skills-compatible"
+  ],
+  "triggers": [
+    "更新插件",
+    "自我迭代",
+    "逛逛社区",
+    "update the plugin"
+  ],
+  "outputs": [
+    "community-scan",
+    "code-fix",
+    "changelog",
+    "discussion-reply",
+    "git-push"
+  ]
+}

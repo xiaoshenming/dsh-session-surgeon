@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { decodeSessionBuffer, danglingToolCalls } from "./decode.mjs";
+import { decodeSessionBuffer, danglingToolCalls, emptyToolCallIds } from "./decode.mjs";
 import { interruptedTurnClosers } from "./closers.mjs";
 import { listSessionFiles, scanHeader } from "./scan.mjs";
 
@@ -60,6 +60,8 @@ export async function inspectEntry(entry) {
   if (decoded.packedRows) flags.push("packed-expanded");
   const dangling = danglingToolCalls(decoded.events);
   if (dangling.length) flags.push("dangling-tool-call");
+  const emptyIds = emptyToolCallIds(decoded.events);
+  if (emptyIds.length) flags.push("empty-tool-call-id");
   return {
     project: entry.project,
     sessionDir: entry.sessionDir,
@@ -92,6 +94,7 @@ export async function inspectEntry(entry) {
     flags,
     unknownTypes: decoded.unknownTypes,
     danglingToolCalls: dangling,
+    emptyToolCallIds: emptyIds,
   };
 }
 

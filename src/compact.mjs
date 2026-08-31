@@ -45,7 +45,7 @@ export function planCompact(decoded, { keepLastTurns } = {}) {
     };
   }
   const health = decoded.health;
-  if (health && health !== "ok" && health !== "header-ok" && health !== "dangling-tool-call" && health !== "unknown-type" && health !== "packed-overlap-suffix") {
+  if (health && health !== "ok" && health !== "header-ok" && health !== "dangling-tool-call" && health !== "empty-tool-call-id" && health !== "unknown-type" && health !== "packed-overlap-suffix") {
     return {
       events: decoded.events.slice(),
       header: decoded.header,

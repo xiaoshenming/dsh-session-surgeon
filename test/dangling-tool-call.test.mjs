@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { danglingToolCalls, decodeSessionBuffer } from "../src/decode.mjs";
+import { danglingToolCalls, decodeSessionBuffer, emptyToolCallIds } from "../src/decode.mjs";
 import { encodeSession } from "../src/encode.mjs";
 import { planRepair } from "../src/repair.mjs";
 
@@ -66,6 +66,57 @@ test("decodeSessionBuffer reports dangling-tool-call without refusing the log", 
   assert.equal(decoded.health, "dangling-tool-call");
   assert.ok(decoded.issues.some((i) => i.code === "dangling-tool-call"));
   assert.equal(decoded.events.length, DANGLING.length);
+});
+
+function assistantWithEmptyToolCall(seq) {
+  return {
+    type: "assistant/message",
+    seq,
+    time: seq + 1,
+    data: {
+      turn: 1,
+      step: 1,
+      message: {
+        id: "a" + seq,
+        role: "assistant",
+        source: { kind: "model", provider: "x", model: "y" },
+        content: [{ type: "tool-call", id: "", name: "", arguments: "{\"ok\":true}" }],
+      },
+    },
+  };
+}
+
+test("emptyToolCallIds flags assistant/message tool-call blocks with empty id", () => {
+  const events = [
+    { type: "turn/start", seq: 0, time: 1, data: { turn: 1 } },
+    assistantWithEmptyToolCall(1),
+    call(2, ""),
+    result(3, ""),
+    { type: "turn/end", seq: 4, time: 5, data: { turn: 1, reason: { kind: "completed" } } },
+  ];
+  assert.deepEqual(emptyToolCallIds(events), [
+    { seq: 1, where: "assistant/message", callId: "" },
+    { seq: 2, where: "tool/call", callId: "" },
+  ]);
+});
+
+test("decode reports empty-tool-call-id without inventing an id on repair", async () => {
+  const events = [
+    { type: "turn/start", seq: 0, time: 1, data: { turn: 1 } },
+    assistantWithEmptyToolCall(1),
+    call(2, ""),
+    result(3, ""),
+    { type: "turn/end", seq: 4, time: 5, data: { turn: 1, reason: { kind: "completed" } } },
+  ];
+  const buf = await encodeSession({ header: HEADER, events, packChunks: false });
+  const decoded = decodeSessionBuffer(buf);
+  assert.equal(decoded.health, "empty-tool-call-id");
+  assert.ok(decoded.issues.some((i) => i.code === "empty-tool-call-id"));
+  const plan = planRepair(decoded);
+  assert.equal(plan.mustWrite, false);
+  const after = plan.events.find((e) => e.type === "assistant/message");
+  assert.equal(after.data.message.content[0].id, "");
+  assert.equal(plan.events.find((e) => e.type === "tool/call").data.callId, "");
 });
 
 test("planRepair does not invent a tool/result for dangling calls", () => {

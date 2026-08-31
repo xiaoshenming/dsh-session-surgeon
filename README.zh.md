@@ -2,7 +2,7 @@
 
 左侧会话 ⋯ → **复制会话 ID**，贴进新对话，让新会话接着学旧会话。这是 Codex 那种「拿线程 ID 继续聊」的用法；官方菜单只有重命名 / 分叉 / 归档，没有复制 ID。
 
-同时能修好打不开的 DeepSeek Harness 会话（seq gap / torn zstd / 孤立代理字符 / 消息缺 ID）。崩溃恢复插进来的短闭包如果撞上还活着的写者（#1586），会丢掉那几条合成闭包、保住后面的真内容，而不是一刀切到第一个缺口。packed 行只重叠已经提交的前缀、后面连续时（#5151），会接上尚未提交的后缀。文件已经 seq gap 时 compact 会拒绝，先停写者再 repair。Alpha 把 `sourceEventSeqs` 压成区间（#5160）会报较新格式并拒绝改写成旧版，请用写这段日志的同一版本打开。`inspect` 还会**警告**悬空 `tool/call`（没有对应 `tool/result`，下次模型请求永久 400），但**不会编**假结果。官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
+同时能修好打不开的 DeepSeek Harness 会话（seq gap / torn zstd / 孤立代理字符 / 消息缺 ID）。崩溃恢复插进来的短闭包如果撞上还活着的写者（#1586），会丢掉那几条合成闭包、保住后面的真内容，而不是一刀切到第一个缺口。packed 行只重叠已经提交的前缀、后面连续时（#5151），会接上尚未提交的后缀。文件已经 seq gap 时 compact 会拒绝，先停写者再 repair。Alpha 把 `sourceEventSeqs` 压成区间（#5160）会报较新格式并拒绝改写成旧版，请用写这段日志的同一版本打开。`inspect` 还会**警告**悬空 `tool/call`（没有对应 `tool/result`，下次模型请求永久 400）以及空的 `tool_calls[].id`（#5182，下次请求 `id cannot be empty`），但**不会编**假结果或假 callId。官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
 
 ## 最常用：复制会话 ID
 
@@ -37,6 +37,8 @@ dsh plugin --profile web add "github:xiaoshenming/dsh-session-surgeon#main"
 - 左侧「会话医生」：看对话、复制 ID、预览修复、应用修复、导出
 
 本地改代码时仍可用 `dsh plugin --profile web add link:"$(pwd)"`。
+
+在能加载本仓库技能的对话里，说一句 **更新插件** 即可：扫官方 Discussions、吸收对口反馈、改代码、写 CHANGELOG、回复、用 px 推 `main`。技能正文：[skills/dsh-session-surgeon-update/SKILL.md](./skills/dsh-session-surgeon-update/SKILL.md)。
 
 ## 命令行
 

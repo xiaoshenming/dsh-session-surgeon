@@ -25,6 +25,7 @@ window.__ModuleLoader__.load({
       "newer-format-ranges": ["较新格式", "Alpha 把 sourceEventSeqs 压成区间。不是 seq gap，不会改成旧格式，请用同一版本打开。"],
       "unparsable-line": ["有一行读不懂", "修复会丢掉读不懂的尾巴。"],
       "message-missing-id": ["消息缺 ID", "官方会整段拒读。修复只补 id，不丢内容。"],
+      "empty-tool-call-id": ["空工具调用 ID", "文件能打开，但下次请求会 400（id cannot be empty）。只定位，不会编假 callId。根因在引擎出栈过滤。"],
       "dangling-tool-call": ["悬空工具调用", "文件能打开，但下次模型请求会永久 400。只定位，不会编假 tool/result。"],
       "unknown-type": ["未知事件类型", "会报告，不会删行，也不会盖 ignorable。"],
     };

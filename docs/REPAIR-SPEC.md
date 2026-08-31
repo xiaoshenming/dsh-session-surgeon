@@ -34,6 +34,7 @@
 | `orphan-tmp` | 旁边有 `.tmp` | 不管 | 列出；不自动当正本 |
 | `open-tail` | 缺 tool/step/turn 闭合，但 seq 连续 | 官方补 closer | 复用同一语义 |
 | `huge-history` | 事件/token 过多 | 加载 stack overflow（#317） | compact / 切片，不叫 repair |
+| `empty-tool-call-id` | `assistant/message` 的 `tool-call` 或 `tool/call` 的 id 为空（#5182） | 文件能打开，下次模型请求永久 400 | inspect 定位；**不编** callId |
 | `unknown-type` | type 不在本 build 词表且无 ignorable | 可能拒载 | 保留，标出来 |
 | `packed-surface-skip` | 没展开 packed 行看到的假跳号 | 健康 | inspect 必须先展开 |
 
@@ -146,3 +147,4 @@
 - 未来 format version
 - header 缺 `delegationDepth` / 带退役字段（形状已经不是 v0）
 - 用插件去改正在跑的 live writer（官方：一个 session 同时只能有一个 writer）
+- 空 `callId` / 空 `tool_calls[].id`：不编假 id。根因是引擎出栈过滤（#5182）；inspect 只标位置

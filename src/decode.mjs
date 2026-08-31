@@ -3,8 +3,8 @@ import { classifyHeader } from "./header.mjs";
 import { countLoneSurrogates } from "./redact.mjs";
 import { SessionLogScanner, isExactHeaderRecord } from "./scanner.mjs";
 import { hasCompressedSeqRanges } from "./provenance.mjs";
-import { danglingToolCalls, missingMessageIds } from "./integrity.mjs";
-export { danglingToolCalls, missingMessageIds } from "./integrity.mjs";
+import { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
+export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
 
 const HEALTH_RANK = [
   "header-frame-corrupt",
@@ -21,6 +21,7 @@ const HEALTH_RANK = [
   "torn-tail",
   "packed-overlap-suffix",
   "unknown-type",
+  "empty-tool-call-id",
   "dangling-tool-call",
   "ok",
 ];
@@ -193,6 +194,22 @@ export function decodeSessionBuffer(buf) {
     health = worse(health, "unknown-type");
     if (!issues.some((i) => i.code === "unknown-type")) {
       issues.push({ code: "unknown-type", message: "unknown types: " + finished.unknownTypes.join(", ") });
+    }
+  }
+  const emptyIds = emptyToolCallIds(finished.events);
+  if (emptyIds.length > 0) {
+    health = worse(health, "empty-tool-call-id");
+    if (!issues.some((i) => i.code === "empty-tool-call-id")) {
+      const seqs = emptyIds.map((d) => d.seq);
+      issues.push({
+        code: "empty-tool-call-id",
+        message:
+          "empty tool-call id at seq " +
+          seqs.join(", ") +
+          " — next model request will 400 (id cannot be empty); inspect only, do not invent an id",
+        seqs,
+        where: emptyIds.map((d) => d.where),
+      });
     }
   }
   const dangling = danglingToolCalls(finished.events);

@@ -44,6 +44,8 @@ Restart `dsh web`. Then:
 
 Developers working in a checkout can still use `dsh plugin --profile web add link:"$(pwd)"`.
 
+In an agent chat that has this checkout (or the installed plugin skills), **更新插件** is enough: scan official Discussions, absorb in-scope repair feedback, changelog, reply, push `main` via `px` (`127.0.0.1:7897`). See [skills/dsh-session-surgeon-update/SKILL.md](./skills/dsh-session-surgeon-update/SKILL.md).
+
 ## Also: repair unloadable sessions
 
 Real crash families from official Discussions:
@@ -53,7 +55,7 @@ Real crash families from official Discussions:
 - [#436](https://github.com/deepseek-ai/deepseek-harness/discussions/436) lone UTF-16 surrogate → permanent HTTP 400
 - [#674](https://github.com/deepseek-ai/deepseek-harness/discussions/674) leftover `.tmp` plaintext
 
-Default repair is dry-run. `--apply` writes `.bak.<utc>` first, never invents missing seqs, and fills missing message ids without dropping events. If a crash-recovery closer collided with a still-live writer (#1586), repair drops those synthetic closers and keeps the live tail instead of truncating at the first gap. A packed chunk row that overlaps already-committed seqs but continues through the cursor (#5151) keeps the uncommitted suffix. Compact refuses an unloadable file — repair first, with all writers stopped. Alpha compressed `sourceEventSeqs` ranges (#5160) are reported as a newer format, not rewritten into v0.
+Default repair is dry-run. `--apply` writes `.bak.<utc>` first, never invents missing seqs, and fills missing message ids without dropping events. If a crash-recovery closer collided with a still-live writer (#1586), repair drops those synthetic closers and keeps the live tail instead of truncating at the first gap. A packed chunk row that overlaps already-committed seqs but continues through the cursor (#5151) keeps the uncommitted suffix. Compact refuses an unloadable file — repair first, with all writers stopped. Alpha compressed `sourceEventSeqs` ranges (#5160) are reported as a newer format, not rewritten into v0. Empty `tool_calls[].id` (#5182) is flagged `empty-tool-call-id`; repair will not invent an id.
 
 ## CLI
 

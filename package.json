@@ -48,7 +48,9 @@
     "src",
     "plugin",
     "docs",
+    "skills",
     "cordis.patch.yml",
+    "CHANGELOG.md",
     "README.md",
     "README.zh.md",
     "LICENSE"
