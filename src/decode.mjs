@@ -15,6 +15,7 @@ const HEALTH_RANK = [
   "message-missing-id",
   "lone-surrogate",
   "torn-tail",
+  "packed-overlap-suffix",
   "unknown-type",
   "dangling-tool-call",
   "ok",
@@ -195,6 +196,7 @@ export function decodeSessionBuffer(buf) {
     if (issue.code === "seq-gap-committed") health = worse(health, "seq-gap-committed");
     else if (issue.code === "seq-gap-tail") health = worse(health, "seq-gap-tail");
     else if (issue.code === "unparsable-line") health = worse(health, "unparsable-line");
+    else if (issue.code === "packed-overlap-suffix") health = worse(health, "packed-overlap-suffix");
   }
   if (failedFrames > 0) health = worse(health, "failed-middle-frame");
   if (tornStart !== undefined) {
@@ -250,6 +252,7 @@ export function decodeSessionBuffer(buf) {
     issues,
     logicalLines: finished.logicalLines,
     packedRows: finished.packedRows,
+    packedOverlapKept: finished.packedOverlapKept ?? 0,
     failedFrames,
     unknownTypes: finished.unknownTypes,
     lastSeq: finished.events.length === 0 ? -1 : finished.events[finished.events.length - 1].seq,
