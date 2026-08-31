@@ -53,6 +53,19 @@ test("keep 1 drops the first turn and renumbers from 0", async () => {
   assert.equal(plan.events.at(-1).type, "turn/end");
 });
 
+test("compact refuses a session with a seq gap", () => {
+  const decoded = {
+    header,
+    headerClass: { ok: true, code: "header-ok", header },
+    events: twoTurns(),
+    health: "seq-gap-committed",
+    failedFrames: 0,
+  };
+  const plan = planCompact(decoded, { keepLastTurns: 1 });
+  assert.equal(plan.mustWrite, false);
+  assert.match(plan.refuse ?? "", /repair first/);
+});
+
 test("compact refuses a decode with failed middle frames", () => {
   const decoded = {
     header,
