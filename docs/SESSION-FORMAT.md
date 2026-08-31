@@ -92,7 +92,7 @@ week 0 CLI 用 magic `28 B5 2F FD` 切帧。这和官方解码器等价到「独
 
 本机顶层会话见过的 type（节选）：
 
-`permission/preset` `sandbox/mode` `approval/policy` `session/end-seed` `agent-preset/selected` `agent/inbox/spliced` `turn/start` `turn/end` `step/start` `step/end` `user/message` `assistant/chunk` `assistant/message` `tool/call` `tool/result` `tool/code-dispatch` `goal/change` `todo/write` `compaction/prune` `session/title` `request/header` `request/context`
+`permission/preset` `sandbox/mode` `approval/policy` `session/end-seed` `agent-preset/selected` `agent/inbox/spliced` `turn/start` `turn/end` `step/start` `step/end` `user/message` `assistant/chunk` `assistant/message` `tool/call` `tool/result` `tool/code-dispatch` `goal/change` `todo/write` `compaction/prune` `session/title` `request/header` `request/context` `team/member` `team/task` `team/message/queued` `team/message/delivered`
 
 子代理另外有 `subagent/descriptor`。
 
