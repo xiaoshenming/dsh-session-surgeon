@@ -90,7 +90,7 @@
 
 对齐 `SessionLogScanner.consumeEventLine`：
 1. JSON.parse / decodeStorageRecord 失败 → issue `unparsable-line`
-2. 展开后 `event.seq !== events.length`：回滚本行已 push 的事件。本行或后续行出现 `turn/end` → issue `seq-gap-committed`；否则 issue `seq-gap-tail`
+2. 展开后 `event.seq !== events.length`：若本行是 packed 行、从已提交 seq 往回重叠但连续接到当前游标，丢掉已提交前缀、收下后缀（#5151）。否则回滚本行已 push 的事件。本行或后续行出现 `turn/end` → issue `seq-gap-committed`；否则 issue `seq-gap-tail`
 3. issue 之后若出现 `turn/end` → committed 缺陷，记录并停止接受（tail 升级为 committed）
 4. issue 之后再无 `turn/end` → 只保留 committed prefix，尾巴当脏尾
 5. 未知 type（不在 KNOWN 且无 `ignorable`）→ 标 `unknown-type`，**保留**
@@ -111,6 +111,7 @@
 
 1. torn-tail：保留不完整帧里已解出的完整行
 2. seq-overlap：后写 seq ≤ lastAccepted → 丢掉从这条起的尾巴
+2b. packed 行重叠已提交前缀、后缀连续：丢掉前缀成员，收下后缀
 3. seq-gap-committed：回退到 gap 前最后一个 turn/end（含）
 4. 若 gap 后没有 turn/end：丢掉 i 及之后，走 closer
 5. lone-surrogate：字符串里孤立代理 → U+FFFD
@@ -123,7 +124,7 @@
 
 - `--keep-last-turns N`（N≥1）
 - v0.1 走更稳妥路径：前面完整 turn 整段删除，从保留的第一个 turn/start 起重排 seq 从 0，`header.seedLength = 0`。不插入 `compaction/summary`
-- 中间坏帧 / header 非 header-ok 时 refuse
+- 中间坏帧 / header 非 header-ok / seq 不连续时 refuse（先 repair）
 - 产出必须是合法独立 session 文件（自己的 header + 连续 seq）
 
 ### Export
