@@ -12,6 +12,7 @@ const DEFAULT_STEPS = {
   committedGap: true,
   dropDirtyTail: true,
   liveWriter: true,
+  packedOverlap: true,
   loneSurrogate: true,
   messageId: true,
   closers: true,
@@ -97,6 +98,16 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
           stitched.stitchSeq,
       });
     }
+  }
+
+  if (steps.packedOverlap && (decoded.packedOverlapKept ?? 0) > 0) {
+    actions.push({
+      code: "packed-overlap-suffix",
+      detail:
+        "kept " +
+        decoded.packedOverlapKept +
+        " event(s) after a packed row's already-committed prefix",
+    });
   }
 
   if (!stitchedLive && decoded.health === "seq-gap-committed" && steps.committedGap) {
