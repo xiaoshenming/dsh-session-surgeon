@@ -35,6 +35,25 @@ export function planCompact(decoded, { keepLastTurns } = {}) {
   if (headerCode !== "header-ok") {
     return { events: decoded.events.slice(), header: decoded.header, mustWrite: false, refuse: `cannot compact: ${headerCode}`, droppedTurns: 0 };
   }
+  if (!eventsSeqOk(decoded.events ?? [])) {
+    return {
+      events: decoded.events.slice(),
+      header: decoded.header,
+      mustWrite: false,
+      refuse: "cannot compact an unloadable session — repair first, with all writers stopped",
+      droppedTurns: 0,
+    };
+  }
+  const health = decoded.health;
+  if (health && health !== "ok" && health !== "header-ok" && health !== "dangling-tool-call" && health !== "unknown-type" && health !== "packed-overlap-suffix") {
+    return {
+      events: decoded.events.slice(),
+      header: decoded.header,
+      mustWrite: false,
+      refuse: `cannot compact: ${health} — repair first, with all writers stopped`,
+      droppedTurns: 0,
+    };
+  }
   const complete = completeTurnStarts(decoded.events);
   if (complete.length <= keepLastTurns) {
     return {
