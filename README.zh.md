@@ -2,7 +2,7 @@
 
 左侧会话 ⋯ → **复制会话 ID**，贴进新对话，让新会话接着学旧会话。这是 Codex 那种「拿线程 ID 继续聊」的用法；官方菜单只有重命名 / 分叉 / 归档，没有复制 ID。
 
-同时能修好打不开的 DeepSeek Harness 会话（seq gap / torn zstd / 孤立代理字符 / 消息缺 ID）。崩溃恢复插进来的短闭包如果撞上还活着的写者（#1586），会丢掉那几条合成闭包、保住后面的真内容，而不是一刀切到第一个缺口。packed 行只重叠已经提交的前缀、后面连续时（#5151），会接上尚未提交的后缀。文件已经 seq gap 时 compact 会拒绝，先停写者再 repair。Alpha 把 `sourceEventSeqs` 压成区间（#5160）会报较新格式并拒绝改写成旧版，请用写这段日志的同一版本打开。`inspect` 还会**警告**悬空 `tool/call`（没有对应 `tool/result`，下次模型请求永久 400）以及空的 `tool_calls[].id`（#5182，下次请求 `id cannot be empty`），但**不会编**假结果或假 callId。官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
+同时能修好打不开的 DeepSeek Harness 会话（seq gap / torn zstd / 孤立代理字符 / 消息缺 ID）。崩溃恢复插进来的短闭包如果撞上还活着的写者（#1586），会丢掉那几条合成闭包、保住后面的真内容，而不是一刀切到第一个缺口。packed 行只重叠已经提交的前缀、后面连续时（#5151），会接上尚未提交的后缀。文件已经 seq gap 时 compact 会拒绝，先停写者再 repair。Alpha 把 `sourceEventSeqs` 压成区间（#5160）时，当前 rc.2 打不开；repair 会把 `[start,end]` 无损展开成密集整数（区间里本来就有这些序号，不是伪造历史）。Alpha 写入、rc.2 不认识的 `model/selection` 会在结构校验通过后保留原事件，只补 `ignorable: true`；任意未知插件事件绝不套用。`inspect` 还会**警告**悬空 `tool/call`（没有对应 `tool/result`，下次模型请求永久 400）以及空的 `tool_calls[].id`（#5182，下次请求 `id cannot be empty`），但**不会编**假结果或假 callId。官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
 
 ## 最常用：复制会话 ID
 

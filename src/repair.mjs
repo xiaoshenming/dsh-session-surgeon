@@ -5,6 +5,8 @@ import { backupThenWrite, encodeSession } from "./encode.mjs";
 import { interruptedTurnClosers } from "./closers.mjs";
 import { replaceLoneSurrogatesIn } from "./redact.mjs";
 import { stitchLiveWriterTail } from "./stitch.mjs";
+import { expandCompressedSeqRanges } from "./provenance.mjs";
+import { applyForwardEventShims } from "./forward-events.mjs";
 
 const DEFAULT_STEPS = {
   tornTail: true,
@@ -13,6 +15,8 @@ const DEFAULT_STEPS = {
   dropDirtyTail: true,
   liveWriter: true,
   packedOverlap: true,
+  forwardEvents: true,
+  compressedRanges: true,
   loneSurrogate: true,
   messageId: true,
   closers: true,
@@ -74,15 +78,6 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
   if (headerCode === "retired-fields") {
     return { actions, events: [], header, mustWrite: false, refuse: "header carries retired policy fields" };
   }
-  if (decoded.health === "newer-format-ranges") {
-    return {
-      actions,
-      events: decoded.events.slice(),
-      header,
-      mustWrite: false,
-      refuse: "newer harness compressed sourceEventSeqs ranges — upgrade the harness, do not rewrite as v0",
-    };
-  }
   if (decoded.failedFrames > 0) {
     return { actions, events: decoded.events.slice(), header, mustWrite: false, refuse: "middle frame failed decompression" };
   }
@@ -106,6 +101,44 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
           " live-writer event(s) from seq " +
           stitched.stitchSeq,
       });
+    }
+  }
+
+  if (steps.forwardEvents) {
+    const shimmed = applyForwardEventShims(events);
+    if (shimmed.shims.length > 0) {
+      events = shimmed.value;
+      actions.push({
+        code: "forward-event-shim",
+        detail:
+          "marked " +
+          shimmed.shims.map((shim) => `${shim.type}@${shim.seq}`).join(", ") +
+          " ignorable for older harnesses; preserved type, data, seq, and time",
+      });
+    }
+  }
+
+  if (steps.compressedRanges) {
+    try {
+      const expanded = expandCompressedSeqRanges(events);
+      if (expanded.expanded > 0) {
+        events = expanded.value;
+        actions.push({
+          code: "newer-format-ranges",
+          detail:
+            "expanded " +
+            expanded.expanded +
+            " sourceEventSeqs field(s) from compressed [start,end] ranges into dense integers",
+        });
+      }
+    } catch (error) {
+      return {
+        actions,
+        events,
+        header,
+        mustWrite: false,
+        refuse: error instanceof Error ? error.message : "sourceEventSeqs range too large to expand",
+      };
     }
   }
 

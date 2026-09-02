@@ -26,7 +26,7 @@ description: |
 
 - 发明缺失 seq、空 callId、假 `tool/result`
 - 给未知插件事件盖 `ignorable`
-- 把 Alpha `sourceEventSeqs` 区间展开成 rc.2 扁平整数（伪迁移）
+- 发明区间外的 seq（`[start,end]` 展开成包含端点的密集整数是允许的，因为这些序号已经在磁盘上）
 - 在认不出签名时任意双写选边
 - 上传真实 `~/.dsh/sessions`
 - 把 `@deepseek-ai/*` 打进 runtime dependencies
@@ -119,7 +119,8 @@ git push SSL EOF 时：Contents API PUT 到 `xiaoshenming/dsh-session-surgeon`�
 - Windows bak `fsync` EPERM → `fsyncBestEffort`
 - #1586 live-writer-tail：丢掉崩溃恢复闭包，保住还活着的写者
 - #5151 packed-overlap-suffix：前缀必须与已提交事件一致才接下后缀
-- #5160 newer-format-ranges：Alpha 区间 refuse，不伪迁移
+- #5160 newer-format-ranges：把 `[start,end]` 展开成密集整数，让当前 rc.2 能 fold
+- Alpha → rc.2 `model/selection`：结构校验通过后只加 `ignorable: true`；保留 type/data/seq/time
 - compact：seq 不连续 / 官方拒读则 refuse
 - `team/*` 在 known-types
 

@@ -115,6 +115,8 @@
 3. seq-gap-committed：回退到 gap 前最后一个 turn/end（含）
 4. 若 gap 后没有 turn/end：丢掉 i 及之后，走 closer
 5. lone-surrogate：字符串里孤立代理 → U+FFFD
+5b. newer-format-ranges：把 sourceEventSeqs 的 [start,end] 展开成包含端点的密集整数
+5c. forward-event-shim：仅对结构校验通过的官方 Alpha `model/selection` 加 `ignorable: true`，不删行、不改 seq/data
 6. 合成 closer
 7. 重跑 decode，seq 必须连续，否则拒绝 --apply
 8. header 解不出 → 只报告不写

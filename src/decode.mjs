@@ -3,6 +3,7 @@ import { classifyHeader } from "./header.mjs";
 import { countLoneSurrogates } from "./redact.mjs";
 import { SessionLogScanner, isExactHeaderRecord } from "./scanner.mjs";
 import { hasCompressedSeqRanges } from "./provenance.mjs";
+import { forwardEventShims } from "./forward-events.mjs";
 import { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
 
@@ -186,7 +187,7 @@ export function decodeSessionBuffer(buf) {
       issues.push({
         code: "newer-format-ranges",
         message:
-          "sourceEventSeqs uses compressed [start,end] ranges written by a newer harness (still labeled v0); upgrade the harness — do not treat this as a corrupt seq gap",
+          "sourceEventSeqs uses compressed [start,end] ranges (still labeled v0); current harness foldSurface rejects this — repair expands ranges into dense integers, not a seq gap",
       });
     }
   }
@@ -195,6 +196,16 @@ export function decodeSessionBuffer(buf) {
     if (!issues.some((i) => i.code === "unknown-type")) {
       issues.push({ code: "unknown-type", message: "unknown types: " + finished.unknownTypes.join(", ") });
     }
+  }
+  const forwardShims = forwardEventShims(finished.events);
+  if (forwardShims.length > 0) {
+    issues.push({
+      code: "forward-event-shim",
+      message:
+        "validated newer official log-only event(s) can be marked ignorable for this harness: " +
+        forwardShims.map((shim) => `${shim.type}@${shim.seq}`).join(", "),
+      seqs: forwardShims.map((shim) => shim.seq),
+    });
   }
   const emptyIds = emptyToolCallIds(finished.events);
   if (emptyIds.length > 0) {

@@ -22,7 +22,7 @@ window.__ModuleLoader__.load({
       "seq-gap-committed": ["中间缺了一段", "官方打不开。崩溃恢复短闭包会丢掉并保住后面真内容；packed 行前缀一致则接上后缀；否则裁到上一完整回合。"],
       "seq-gap-tail": ["结尾不完整", "写入中断了。修复会丢掉脏尾巴。"],
       "packed-overlap-suffix": ["packed 行重叠", "丢掉已提交且与原文一致的前缀，保住后面连续内容。"],
-      "newer-format-ranges": ["较新格式", "Alpha 把 sourceEventSeqs 压成区间。不是 seq gap，不会改成旧格式，请用同一版本打开。"],
+      "newer-format-ranges": ["区间格式", "sourceEventSeqs 被压成 [start,end]。当前 harness 打不开。修复会展开成密集整数，不丢内容。"],
       "unparsable-line": ["有一行读不懂", "修复会丢掉读不懂的尾巴。"],
       "message-missing-id": ["消息缺 ID", "官方会整段拒读。修复只补 id，不丢内容。"],
       "empty-tool-call-id": ["空工具调用 ID", "文件能打开，但下次请求会 400（id cannot be empty）。只定位，不会编假 callId。根因在引擎出栈过滤。"],

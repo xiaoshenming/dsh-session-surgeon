@@ -28,7 +28,8 @@
 | `unparsable-line` | 某行不是 JSON / packed 行畸形 | 若之后有 turn/end → 拒载 | 丢掉该行及之后，或停在上一 turn/end |
 | `seq-gap-committed` | 展开后 seq 不连续，且之后有 turn/end | **拒载**（#1497/#1586） | 主修复路径；若能证明是崩溃恢复闭包 vs 还活着的写者，丢掉闭包、保留 live 分支 |
 | `packed-overlap-suffix` | packed 行从已提交 seq 往回重叠、后缀连续且前缀与已提交事件一致 | **拒载**（#5151） | 丢掉已提交前缀成员，收下尚未提交的后缀 |
-| `newer-format-ranges` | `sourceEventSeqs` 含 `[start,end]` 区间（Alpha #3048，version 仍为 0） | 旧读端误报 corrupt（#5160） | **refuse**，提示升级；不展开成扁平整数 |
+| `newer-format-ranges` | `sourceEventSeqs` 含 `[start,end]` 区间（Alpha #3048，version 仍为 0） | 当前 rc.2 `foldSurface` 拒载（#5160）；npm 上没有可升级版本 | **展开**成包含端点的密集整数；不发明区间外的 seq |
+| `forward-event-shim` | Alpha `model/selection` 降级后 rc.2 不认识 | `SessionFormatUnsupportedError` | 仅在官方结构校验通过时加 `ignorable: true`；保留 type/data/seq/time |
 | `seq-overlap-replay` | 同一 seq 出现两次（崩溃重放） | 表现为 gap/overlap | 保留先写的，丢掉重放尾 |
 | `lone-surrogate` | 用户文本含孤立 UTF-16 代理 | 可能永久 HTTP 400（#436） | 剥掉或替换 U+FFFD |
 | `orphan-tmp` | 旁边有 `.tmp` | 不管 | 列出；不自动当正本 |
@@ -51,6 +52,10 @@
 3. 后续完整帧 → JSONL 行
 4. 每行 `JSON.parse` + 展开 packed 行（对齐 `decodeStorageRecord`）
 5. 得到逻辑事件数组 `events[]`，期望 `events[i].seq === i`
+
+若未知事件是结构完整的官方 Alpha `model/selection`，repair 可只给事件 envelope 加
+`ignorable: true`。官方将它定义为 log-only、不会进入派生模型历史，因此 rc.2 跳过它
+不会改变对话内容。其他未知类型（尤其插件事件）不套用此规则。
 
 ### 2.2 torn-tail
 
