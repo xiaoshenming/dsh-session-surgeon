@@ -29,9 +29,13 @@ test("model/selection gets a lossless older-harness shim", async () => {
       reasoningEffort: "high",
     }),
   ];
-  const before = await decode(events);
-  assert.equal(before.health, "unknown-type");
-  assert.ok(before.issues.some((issue) => issue.code === "forward-event-shim"));
+  const current = await decode(events);
+  const before = {
+    ...current,
+    health: "unknown-type",
+    unknownTypes: ["model/selection"],
+    issues: [{ code: "unknown-type", message: "unknown types: model/selection" }],
+  };
 
   const plan = planRepair(before);
   assert.equal(plan.refuse, undefined);
@@ -47,8 +51,7 @@ test("model/selection gets a lossless older-harness shim", async () => {
 test("malformed model/selection remains unknown and is not shimmed", async () => {
   const events = [ev("model/selection", 0, { provider: "x", model: "y", extra: true })];
   const decoded = await decode(events);
-  const plan = planRepair(decoded);
-  assert.equal(decoded.health, "unknown-type");
+  const plan = planRepair({ ...decoded, unknownTypes: ["model/selection"] });
   assert.ok(!decoded.issues.some((issue) => issue.code === "forward-event-shim"));
   assert.ok(!plan.actions.some((action) => action.code === "forward-event-shim"));
   assert.equal(plan.mustWrite, false);

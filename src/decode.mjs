@@ -197,7 +197,10 @@ export function decodeSessionBuffer(buf) {
       issues.push({ code: "unknown-type", message: "unknown types: " + finished.unknownTypes.join(", ") });
     }
   }
-  const forwardShims = forwardEventShims(finished.events);
+  const unknownTypeSet = new Set(finished.unknownTypes);
+  const forwardShims = forwardEventShims(
+    finished.events.filter((event) => unknownTypeSet.has(event.type)),
+  );
   if (forwardShims.length > 0) {
     issues.push({
       code: "forward-event-shim",

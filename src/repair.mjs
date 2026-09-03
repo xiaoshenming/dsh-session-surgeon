@@ -104,7 +104,7 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
     }
   }
 
-  if (steps.forwardEvents) {
+  if (steps.forwardEvents && decoded.unknownTypes?.includes("model/selection")) {
     const shimmed = applyForwardEventShims(events);
     if (shimmed.shims.length > 0) {
       events = shimmed.value;

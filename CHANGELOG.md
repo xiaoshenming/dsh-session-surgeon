@@ -16,8 +16,8 @@ All notable user-facing changes to dsh-session-surgeon. Dates are UTC.
 
 ### Changed
 
+- The known-event catalog is resolved from the actually installed DSH runtime, with the bundled rc.2 catalog used only as a fallback. rc.2 and rc.1 no longer require contradictory hard-coded vocabularies; newer official events use narrow downgrade shims only when the active loader does not support them.
 - Compact refuses unloadable files (seq gap / failed frames / newer format). Repair first, with all writers stopped — compact itself does not create seq holes, but a second live writer after rewrite will.
-- The known-event catalog again matches the installed rc.2 loader exactly. Newer official events are handled only by narrow, shape-validated downgrade shims instead of being mislabeled as locally supported.
 - Inspect keeps overflow after the first seq defect instead of pretending later rows do not exist.
 
 ### Fixed
