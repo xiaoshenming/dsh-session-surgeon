@@ -43,13 +43,29 @@ test("client bundle registers and exposes settingsCopy through its factory", asy
     throw new Error("client bundle must not import undeclared modules");
   });
   assert.equal(mod.name, "session-surgeon");
-  assert.deepEqual(Array.from(mod.inject), ["sessions"]);
+  assert.deepEqual(Array.from(mod.inject), ["sessions", "locale"]);
   assert.equal(typeof mod.apply, "function");
 
   const copy = mod.settingsCopy();
   assert.match(copy.title, /Session surgeon/);
   assert.match(copy.body, /会话医生/);
   assert.match(copy.body, /session_scan/);
+
+  const listeners = [];
+  const locale = {
+    getLocale() { return { active: "en" }; },
+    subscribe(fn) { listeners.push(fn); return () => {}; },
+  };
+  const ctx = { locale, effect() {} };
+  mod.apply(ctx);
+  assert.equal(listeners.length, 1);
+  assert.match(mod.settingsCopy().body, /Most used: session/);
+  locale.getLocale = () => ({ active: "nl" });
+  listeners[0]();
+  assert.match(mod.settingsCopy().body, /Meest gebruikt/);
+  locale.getLocale = () => ({ active: "zh-CN" });
+  listeners[0]();
+  assert.match(mod.settingsCopy().body, /会话医生/);
 });
 
 test("apply registers the three session tools when dsh-tools is resolvable", async () => {

@@ -7,6 +7,7 @@ All notable user-facing changes to dsh-session-surgeon. Dates are UTC.
 ### Added
 
 - Agent skill `dsh-session-surgeon-update`: saying **更新插件** (or 自我迭代 / 逛逛社区) runs the community-scan → code → changelog → reply → px-push loop without restating the steps.
+- Web UI follows the app locale (zh / en / nl) and re-renders live ([#2](https://github.com/xiaoshenming/dsh-session-surgeon/pull/2) by @vkpeter). Chinese remains the default when the locale service is missing.
 - Inspect flags empty `tool_calls[].id` / empty `tool/call.callId` as `empty-tool-call-id` ([#5182](https://github.com/deepseek-ai/deepseek-harness/discussions/5182)). Repair still **does not invent** an id — the engine must filter on replay.
 - Packed-row overlap suffix (`packed-overlap-suffix`, [#5151](https://github.com/deepseek-ai/deepseek-harness/discussions/5151)): when a packed chunk row starts before the committed cursor but continues through it **and the overlapping prefix is identical to already-committed events**, drop that prefix and keep the uncommitted suffix. Seq numbers already exist on disk — nothing is invented. A mismatched prefix is still a seq gap.
 - Crash-recovery vs live writer (`live-writer-tail`, [#1586](https://github.com/deepseek-ai/deepseek-harness/discussions/1586) / [#1497](https://github.com/deepseek-ai/deepseek-harness/discussions/1497)): drop official `interrupted-tool-result-*` / `turn/end interrupted` closers when overflow resumes at the same seq with real work.
