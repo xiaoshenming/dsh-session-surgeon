@@ -75,10 +75,11 @@ window.__ModuleLoader__.load({
           "seq-gap-committed": ["中间缺了一段", "官方打不开。崩溃恢复短闭包会丢掉并保住后面真内容；packed 行前缀一致则接上后缀；否则裁到上一完整回合。"],
           "seq-gap-tail": ["结尾不完整", "写入中断了。修复会丢掉脏尾巴。"],
           "packed-overlap-suffix": ["packed 行重叠", "丢掉已提交且与原文一致的前缀，保住后面连续内容。"],
-          "newer-format-ranges": ["区间格式", "sourceEventSeqs 被压成 [start,end]。当前 harness 打不开。修复会展开成密集整数，不丢内容。"],
+          "newer-format-ranges": ["区间格式", "sourceEventSeqs 被压成 [start,end]。本机 harness 还不会展开，修复会写成密集整数。0.1.2-rc.1 起官方已能直接打开，不必改文件。"],
           "unparsable-line": ["有一行读不懂", "修复会丢掉读不懂的尾巴。"],
           "message-missing-id": ["消息缺 ID", "官方会整段拒读。修复只补 id，不丢内容。"],
           "empty-tool-call-id": ["空工具调用 ID", "文件能打开，但下次请求会 400（id cannot be empty）。只定位，不会编假 callId。根因在引擎出栈过滤。"],
+          "duplicate-tool-call-id": ["重复工具调用 ID", "同一步里多次通告同一个 callId。0.1.3 起 v0→v1 迁移会拒读（#5909）。修复只给后出现的 id 加 #n 后缀，不编空 id。"],
           "dangling-tool-call": ["悬空工具调用", "文件能打开，但下次模型请求会永久 400。只定位，不会编假 tool/result。"],
           "unknown-type": ["未知事件类型", "会报告，不会删行，也不会盖 ignorable。"]
         }
@@ -150,10 +151,11 @@ window.__ModuleLoader__.load({
           "seq-gap-committed": ["Gap in the middle", "The official loader cannot open it. Crash-recovery short closers are dropped while the real tail is kept; packed rows with a matching prefix get their suffix stitched on; otherwise it truncates to the last complete turn."],
           "seq-gap-tail": ["Incomplete ending", "The write was interrupted. Repair drops the dirty tail."],
           "packed-overlap-suffix": ["Overlapping packed row", "Drops the committed prefix that matches the original and keeps the continuous content after it."],
-          "newer-format-ranges": ["Range format", "sourceEventSeqs was packed into [start,end]. The current harness cannot open it. Repair expands the pairs into dense integers and keeps the content."],
+          "newer-format-ranges": ["Range format", "sourceEventSeqs was packed into [start,end]. This harness cannot expand them; repair writes dense integers. 0.1.2-rc.1+ opens the file natively — leave it alone."],
           "unparsable-line": ["Unreadable line", "Repair drops the unreadable tail."],
           "message-missing-id": ["Message missing ID", "The official loader rejects the whole section. Repair only fills ids; nothing is dropped."],
           "empty-tool-call-id": ["Empty tool-call ID", "The file opens, but the next request 400s (id cannot be empty). Only located, no fake callId is invented. Root cause is in the engine's stack filtering."],
+          "duplicate-tool-call-id": ["Duplicate tool-call ID", "The same callId is advertised twice in one step. 0.1.3+ v0→v1 migration refuses the session (#5909). Repair suffixes later ids with #n; empty ids are never invented."],
           "dangling-tool-call": ["Dangling tool call", "The file opens, but the next model request will 400 forever. Only located, no fake tool/result is invented."],
           "unknown-type": ["Unknown event type", "Reported; no rows deleted, nothing marked ignorable."]
         }
@@ -225,10 +227,11 @@ window.__ModuleLoader__.load({
           "seq-gap-committed": ["Ontbrekend stuk in het midden", "De officiële lader kan het niet openen. Korte crashherstel-closers worden weggegooid en de echte staart blijft behouden; packed-rijen met een overeenkomend voorvoegsel krijgen hun achtervoegsel eraan vastgemaakt; anders kapt hij af tot de laatste volledige beurt."],
           "seq-gap-tail": ["Onvolledig einde", "Het wegschrijven is onderbroken. Reparatie gooit de vuile staart weg."],
           "packed-overlap-suffix": ["Overlappende packed-rij", "Gooit het vastgelegde voorvoegsel weg dat overeenkomt met het origineel en behoudt de doorlopende inhoud erna."],
-          "newer-format-ranges": ["Bereikindeling", "sourceEventSeqs is gecomprimeerd tot [start,end]. De huidige harness kan het niet openen. Reparatie vouwt de paren uit tot dichte gehele getallen en behoudt de inhoud."],
+          "newer-format-ranges": ["Bereikindeling", "sourceEventSeqs is gecomprimeerd tot [start,end]. Deze harness kan ze niet uitvouwen; reparatie schrijft dichte gehele getallen. Vanaf 0.1.2-rc.1 opent de officiële lader het bestand zelf — niet herschrijven."],
           "unparsable-line": ["Onleesbare regel", "Reparatie gooit de onleesbare staart weg."],
           "message-missing-id": ["Bericht zonder ID", "De officiële lader wijst het hele stuk af. Reparatie vult alleen id's aan; er gaat niets verloren."],
           "empty-tool-call-id": ["Lege tool-call-ID", "Het bestand opent, maar de volgende aanvraag geeft 400 (id cannot be empty). Wordt alleen gelokaliseerd, er wordt geen nep-callId verzonnen. De oorzaak ligt in de stackfiltering van de engine."],
+          "duplicate-tool-call-id": ["Dubbele tool-call-ID", "Hetzelfde callId wordt in één stap twee keer aangekondigd. Vanaf 0.1.3 weigert de v0→v1-migratie de sessie (#5909). Reparatie zet #n achter latere id's; lege id's worden nooit verzonnen."],
           "dangling-tool-call": ["Hangende tool-aanroep", "Het bestand opent, maar de volgende modelaanvraag blijft 400 geven. Wordt alleen gelokaliseerd, er wordt geen nep-tool/resultaat verzonnen."],
           "unknown-type": ["Onbekend gebeurtenistype", "Wordt gemeld; er worden geen regels verwijderd en niets wordt als ignorable gemarkeerd."]
         }

@@ -1,6 +1,6 @@
 # dsh-session-surgeon 实现合同（多智能体共享）
 
-兼容：`@deepseek-ai/dsh@0.1.0-rc.6`
+兼容：`@deepseek-ai/dsh@0.1.2-rc.1`（词表与 seq-range 能力跟随本机 runtime）
 对照源码（只读，禁止复制进 dependencies；路径随本机 DSH 安装位置变化）：
 - `@deepseek-ai/dsh-session/lib/types/chunk-rows.js`
 - `@deepseek-ai/dsh-session/lib/types/repair.js`
@@ -115,8 +115,9 @@
 3. seq-gap-committed：回退到 gap 前最后一个 turn/end（含）
 4. 若 gap 后没有 turn/end：丢掉 i 及之后，走 closer
 5. lone-surrogate：字符串里孤立代理 → U+FFFD
-5b. newer-format-ranges：把 sourceEventSeqs 的 [start,end] 展开成包含端点的密集整数
+5b. newer-format-ranges：仅当本机没有 `decodeSeqRanges` 时把 sourceEventSeqs 的 [start,end] 展开成包含端点的密集整数
 5c. forward-event-shim：仅对结构校验通过的官方 Alpha `model/selection` 加 `ignorable: true`，不删行、不改 seq/data
+5d. duplicate-tool-call-id：仅当本机 format version ≥ 1 时给同一步后出现的重复 callId 加 `#n`，并按顺序重映射 tool/call 与 tool/result
 6. 合成 closer
 7. 重跑 decode，seq 必须连续，否则拒绝 --apply
 8. header 解不出 → 只报告不写

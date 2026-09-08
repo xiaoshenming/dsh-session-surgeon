@@ -6,17 +6,20 @@ All notable user-facing changes to dsh-session-surgeon. Dates are UTC.
 
 ### Added
 
+- Follow DeepSeek Harness **0.1.2-rc.1** (native `decodeSeqRanges`, live event catalog) and **0.1.3-alpha** format generations: `session.vN.jsonl.zstd` (`SESSION_FORMAT_VERSION` 2). Historical v0 files stay readable; only a version *newer* than the installed runtime is `foreign-version`.
+- Duplicate advertised tool-call ids in one step (`duplicate-tool-call-id`, [#5909](https://github.com/deepseek-ai/deepseek-harness/discussions/5909)). 0.1.3 v0→v1 migration throws `assistant/message repeats advertised tool call`. Repair suffixes later duplicates (`id#2`) and remaps matching `tool/call` / `tool/result` in order — never invents an empty id. On 0.1.2-rc.1 (v0) this is inspect-only because the file still loads.
 - Agent skill `dsh-session-surgeon-update`: saying **更新插件** (or 自我迭代 / 逛逛社区) runs the community-scan → code → changelog → reply → px-push loop without restating the steps.
 - Web UI follows the app locale (zh / en / nl) and re-renders live ([#2](https://github.com/xiaoshenming/dsh-session-surgeon/pull/2) by @vkpeter). Chinese remains the default when the locale service is missing.
 - Inspect flags empty `tool_calls[].id` / empty `tool/call.callId` as `empty-tool-call-id` ([#5182](https://github.com/deepseek-ai/deepseek-harness/discussions/5182)). Repair still **does not invent** an id — the engine must filter on replay.
 - Packed-row overlap suffix (`packed-overlap-suffix`, [#5151](https://github.com/deepseek-ai/deepseek-harness/discussions/5151)): when a packed chunk row starts before the committed cursor but continues through it **and the overlapping prefix is identical to already-committed events**, drop that prefix and keep the uncommitted suffix. Seq numbers already exist on disk — nothing is invented. A mismatched prefix is still a seq gap.
 - Crash-recovery vs live writer (`live-writer-tail`, [#1586](https://github.com/deepseek-ai/deepseek-harness/discussions/1586) / [#1497](https://github.com/deepseek-ai/deepseek-harness/discussions/1497)): drop official `interrupted-tool-result-*` / `turn/end interrupted` closers when overflow resumes at the same seq with real work.
-- Detect Alpha compressed `sourceEventSeqs` ranges (`newer-format-ranges`, [#5160](https://github.com/deepseek-ai/deepseek-harness/discussions/5160) / [#4910](https://github.com/deepseek-ai/deepseek-harness/discussions/4910)). Current `@deepseek-ai/dsh@0.1.1-rc.2` `foldSurface` still requires dense integers and npm has no newer harness — **repair expands** inclusive `[start,end]` pairs losslessly instead of refusing.
+- Detect Alpha compressed `sourceEventSeqs` ranges (`newer-format-ranges`, [#5160](https://github.com/deepseek-ai/deepseek-harness/discussions/5160) / [#4910](https://github.com/deepseek-ai/deepseek-harness/discussions/4910)). **0.1.2-rc.1+** persistence expands pairs on read — surgeon leaves those files alone. Older rc.2 still cannot: repair expands inclusive `[start,end]` pairs losslessly.
 - Repair validated Alpha `model/selection` events after a downgrade to rc.2 by adding only `ignorable: true`. The official event is log-only and never enters derived model history; type, data, seq, and time stay intact. Malformed variants and arbitrary plugin events remain untouched.
 
 ### Changed
 
-- The known-event catalog is resolved from the actually installed DSH runtime, with the bundled rc.2 catalog used only as a fallback. rc.2 and rc.1 no longer require contradictory hard-coded vocabularies; newer official events use narrow downgrade shims only when the active loader does not support them.
+- Follow the **installed** DSH runtime (`0.1.2-rc.1` catalog, native `decodeSeqRanges`). Bundled fallback stays the older rc.2 vocabulary. `model/selection` is only shimmed to `ignorable` when the active loader does not know it. Compressed `sourceEventSeqs` ranges are not rewritten on a harness that already expands them.
+- Peer `@deepseek-ai/dsh-tools` range is `>=0.1.0-rc.6 <0.2.0` so `0.1.2-rc.1` resolves (a caret on a prerelease does not).
 - Compact refuses unloadable files (seq gap / failed frames / newer format). Repair first, with all writers stopped — compact itself does not create seq holes, but a second live writer after rewrite will.
 - Inspect keeps overflow after the first seq defect instead of pretending later rows do not exist.
 

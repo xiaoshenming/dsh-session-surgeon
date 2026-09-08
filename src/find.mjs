@@ -1,8 +1,8 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
-
-const TMP_NAMES = ["session.jsonl.zstd.tmp", "session.jsonl.tmp"];
+import { SESSION_FORMAT_VERSION } from "./runtime.mjs";
+import { isGenerationTmpName, parseGenerationFilename, pickCanonicalGeneration } from "./generations.mjs";
 
 /** Session root: $DSH_SESSION_ROOT or ~/.dsh/sessions. */
 export function defaultSessionRoot() {
@@ -19,8 +19,9 @@ async function exists(path) {
 }
 
 /**
- * Two-level walk: root/<project>/<session>/{session.jsonl.zstd|session.jsonl}.
+ * Two-level walk: root/<project>/<session>/{session.jsonl.zstd|session.vN.jsonl.zstd|plaintext}.
  * Sibling `.tmp` names are listed; they are never treated as the canonical log.
+ * When several generations exist, pick the highest the installed runtime can read.
  */
 export async function listSessionFiles(root) {
   const out = [];
@@ -43,28 +44,33 @@ export async function listSessionFiles(root) {
     for (const session of sessions) {
       if (!session.isDirectory()) continue;
       const dir = join(projectDir, session.name);
-      const zstd = join(dir, "session.jsonl.zstd");
-      const raw = join(dir, "session.jsonl");
-      let kind = null;
-      let file = null;
-      if (await exists(zstd)) {
-        kind = "zstd";
-        file = zstd;
-      } else if (await exists(raw)) {
-        kind = "jsonl";
-        file = raw;
+      let names;
+      try {
+        names = await readdir(dir);
+      } catch {
+        continue;
       }
+      const gens = [];
       const tmpFiles = [];
-      for (const name of TMP_NAMES) {
-        if (await exists(join(dir, name))) tmpFiles.push(name);
+      for (const name of names) {
+        if (isGenerationTmpName(name) && (await exists(join(dir, name)))) {
+          tmpFiles.push(name);
+          continue;
+        }
+        const parsed = parseGenerationFilename(name);
+        if (!parsed) continue;
+        if (await exists(join(dir, name))) gens.push(parsed);
       }
-      if (!file && tmpFiles.length === 0) continue;
+      const canonical = pickCanonicalGeneration(gens, SESSION_FORMAT_VERSION);
+      if (!canonical && tmpFiles.length === 0) continue;
       out.push({
         project: project.name,
         sessionDir: session.name,
         dir,
-        file,
-        kind,
+        file: canonical ? join(dir, canonical.filename) : null,
+        kind: canonical ? (canonical.compression === "zstd" ? "zstd" : "jsonl") : null,
+        generation: canonical?.version,
+        generations: gens.map((g) => g.version),
         tmpFiles,
       });
     }

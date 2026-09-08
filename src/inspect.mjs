@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { decodeSessionBuffer, danglingToolCalls, emptyToolCallIds } from "./decode.mjs";
+import { decodeSessionBuffer, danglingToolCalls, duplicateAdvertisedToolCallIds, emptyToolCallIds } from "./decode.mjs";
 import { interruptedTurnClosers } from "./closers.mjs";
 import { listSessionFiles, scanHeader } from "./scan.mjs";
 
@@ -46,7 +46,7 @@ export async function inspectEntry(entry) {
     return {
       ...entry,
       health: entry.kind === "jsonl" ? "raw-jsonl" : "orphan-tmp",
-      issues: [{ code: "unsupported", message: "inspect supports session.jsonl.zstd only" }],
+      issues: [{ code: "unsupported", message: "inspect supports zstd session logs only" }],
       events: undefined,
     };
   }
@@ -62,12 +62,15 @@ export async function inspectEntry(entry) {
   if (dangling.length) flags.push("dangling-tool-call");
   const emptyIds = emptyToolCallIds(decoded.events);
   if (emptyIds.length) flags.push("empty-tool-call-id");
+  const duplicateIds = duplicateAdvertisedToolCallIds(decoded.events);
+  if (duplicateIds.length) flags.push("duplicate-tool-call-id");
   return {
     project: entry.project,
     sessionDir: entry.sessionDir,
     dir: entry.dir,
     file: entry.file,
     kind: entry.kind,
+    generation: entry.generation,
     bytes: buf.length,
     header: decoded.header,
     health: decoded.health,

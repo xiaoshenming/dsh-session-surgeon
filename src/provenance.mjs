@@ -1,9 +1,8 @@
 /**
- * Detect Alpha (#3048) compressed sourceEventSeqs ranges. Official v0 / rc.2
- * foldSurface only accepts a dense array of integers; a `[start, end]` pair
- * is a newer on-disk shape that still claims version 0 (#5160 / #4910).
- * Inspect reports it; repair expands ranges losslessly so current harness
- * can open the file. Never invent seqs that were not already in the range.
+ * Detect Alpha (#3048) compressed sourceEventSeqs ranges.
+ * 0.1.2-rc.1+ persistence expands them on read (`decodeSeqRanges`).
+ * Older harnesses (rc.2 foldSurface) still reject pairs. Repair expands
+ * only when the *installed* runtime cannot. Never invent seqs outside the range.
  */
 
 function isRecord(value) {

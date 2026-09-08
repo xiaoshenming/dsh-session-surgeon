@@ -1,6 +1,6 @@
 # 修复规格（对齐官方 loader）
 
-目标：`repair --apply` 之后的文件，必须能被 `@deepseek-ai/dsh-session-persistence-jsonl@0.1.0-rc.6` 的 `load()` 接受，并且重放后 turn/step/tool 闭合。
+目标：`repair --apply` 之后的文件，必须能被**本机已安装**的 `@deepseek-ai/dsh-session-persistence-jsonl`（现为 0.1.2-rc.1）的 `load()` 接受，并且重放后 turn/step/tool 闭合。
 
 官方只修 torn tail。下面每一条都是「官方拒载、我们才动手」的合同。
 
@@ -28,7 +28,8 @@
 | `unparsable-line` | 某行不是 JSON / packed 行畸形 | 若之后有 turn/end → 拒载 | 丢掉该行及之后，或停在上一 turn/end |
 | `seq-gap-committed` | 展开后 seq 不连续，且之后有 turn/end | **拒载**（#1497/#1586） | 主修复路径；若能证明是崩溃恢复闭包 vs 还活着的写者，丢掉闭包、保留 live 分支 |
 | `packed-overlap-suffix` | packed 行从已提交 seq 往回重叠、后缀连续且前缀与已提交事件一致 | **拒载**（#5151） | 丢掉已提交前缀成员，收下尚未提交的后缀 |
-| `newer-format-ranges` | `sourceEventSeqs` 含 `[start,end]` 区间（Alpha #3048，version 仍为 0） | 当前 rc.2 `foldSurface` 拒载（#5160）；npm 上没有可升级版本 | **展开**成包含端点的密集整数；不发明区间外的 seq |
+| `newer-format-ranges` | `sourceEventSeqs` 含 `[start,end]` 区间（Alpha #3048，version 仍为 0） | **0.1.2-rc.1+** persistence 读时展开，文件健康；更旧 rc.2 `foldSurface` 仍拒载（#5160） | 仅当本机 runtime **没有** `decodeSeqRanges` 时展开成密集整数；有则 no-op |
+| `duplicate-tool-call-id` | 同一步 `assistant/message` 多次通告同一 `callId` | **0.1.3+** v0→v1 迁移拒读（#5909）；v0 读端仍能打开 | 仅当本机 `SESSION_FORMAT_VERSION >= 1` 时给后出现的 id 加 `#n` 并按出现顺序重映射 `tool/call` / `tool/result`；不编空 id |
 | `forward-event-shim` | Alpha `model/selection` 降级后 rc.2 不认识 | `SessionFormatUnsupportedError` | 仅在官方结构校验通过时加 `ignorable: true`；保留 type/data/seq/time |
 | `seq-overlap-replay` | 同一 seq 出现两次（崩溃重放） | 表现为 gap/overlap | 保留先写的，丢掉重放尾 |
 | `lone-surrogate` | 用户文本含孤立 UTF-16 代理 | 可能永久 HTTP 400（#436） | 剥掉或替换 U+FFFD |

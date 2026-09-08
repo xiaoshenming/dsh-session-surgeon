@@ -15,7 +15,8 @@
 <DSH_HOME>/sessions/                  # 默认 ~/.dsh/sessions
   --<normalized-cwd>--/               # projectKey(cwd)，有损
     <encodeSegment(sessionId)>/
-      session.jsonl.zstd              # compression 默认 zstd
+      session.jsonl.zstd              # v0，compression 默认 zstd
+      session.vN.jsonl.zstd           # 0.1.3+ 代际（N>=1）；当前 alpha 写 v2
       session.jsonl                   # 仅 compression: none
 ```
 

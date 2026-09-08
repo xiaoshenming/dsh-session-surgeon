@@ -23,7 +23,7 @@ test("accepts a legal v0 header", () => {
   const rec = parseHeaderRecord(Buffer.from(JSON.stringify(good) + "\n"));
   assert.equal(rec.id, "session-test");
   assert.equal(toHeaderLine(rec).type, "session");
-  assert.equal(SESSION_FORMAT_VERSION, 0);
+  assert.ok(Number.isSafeInteger(SESSION_FORMAT_VERSION));
 });
 
 test("rejects missing delegationDepth", () => {
@@ -32,12 +32,20 @@ test("rejects missing delegationDepth", () => {
   assert.equal(classifyHeader(bad).code, "header-parse-error");
 });
 
-test("version 1 is foreign, not corrupt", () => {
-  const foreign = { ...good, version: 1 };
-  const classified = classifyHeader(foreign);
+test("a version newer than the installed runtime is foreign, not corrupt", () => {
+  const future = SESSION_FORMAT_VERSION + 1;
+  const extra = future >= 2 ? { isSeeded: false } : {};
+  const classified = classifyHeader({ ...good, version: future, ...extra });
   assert.equal(classified.ok, false);
   assert.equal(classified.code, "foreign-version");
   assert.match(classified.error, /upgrade the harness/i);
+});
+
+test("v2 physical headers require isSeeded and omit seedLength", () => {
+  const v2 = { ...good, version: 2, isSeeded: false };
+  assert.equal(isHeaderLine(v2), true);
+  assert.equal(isHeaderLine({ ...v2, seedLength: 0 }), false);
+  assert.equal(isHeaderLine({ ...good, version: 2 }), false);
 });
 
 test("retired policy fields are refused", () => {

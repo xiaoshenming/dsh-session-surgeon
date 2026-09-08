@@ -30,9 +30,11 @@ async function frameOf(text) {
 export async function encodeSession({
   header,
   events,
-  packChunks = true,
+  packChunks,
   eventsPerFrame = 32,
 } = {}) {
+  // v2 stores compact Assistant streams as nested attempt data — one event per row.
+  if (packChunks === undefined) packChunks = (header?.version ?? 0) < 2;
   if (!Array.isArray(events)) {
     throw new TypeError("events must be an array");
   }

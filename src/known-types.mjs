@@ -3,10 +3,8 @@
  * Unknown types without the envelope `ignorable: true` marker are reported,
  * not dropped.
  */
-import { existsSync, realpathSync } from "node:fs";
-import { createRequire } from "node:module";
-import { delimiter, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { catalogModulePath, dshRequires } from "./runtime.mjs";
 
 const FALLBACK_SESSION_EVENT_TYPES = [
   "agent-preset/selected",
@@ -59,26 +57,11 @@ const FALLBACK_SESSION_EVENT_TYPES = [
   "web/deepseek-search-llm-request",
 ];
 
-function dshRequires() {
-  const requires = [createRequire(import.meta.url)];
-  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
-    if (dir === "") continue;
-    const candidate = join(dir, process.platform === "win32" ? "dsh.cmd" : "dsh");
-    if (!existsSync(candidate)) continue;
-    try {
-      requires.push(createRequire(realpathSync(candidate)));
-    } catch {
-      // Ignore stale or non-file PATH entries.
-    }
-  }
-  return requires;
-}
-
 async function installedCatalog() {
   for (const requireFrom of dshRequires()) {
     try {
       const root = requireFrom.resolve("@deepseek-ai/dsh-session");
-      const modulePath = join(dirname(root), "types", "known-event-types.js");
+      const modulePath = catalogModulePath(root);
       const loaded = await import(pathToFileURL(modulePath).href);
       const catalog = loaded.KNOWN_SESSION_EVENT_TYPES;
       if (catalog instanceof Set && [...catalog].every((type) => typeof type === "string")) {

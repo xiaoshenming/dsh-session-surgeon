@@ -3,9 +3,12 @@ import { classifyHeader } from "./header.mjs";
 import { countLoneSurrogates } from "./redact.mjs";
 import { SessionLogScanner, isExactHeaderRecord } from "./scanner.mjs";
 import { hasCompressedSeqRanges } from "./provenance.mjs";
+import { MIGRATION_REFUSES_DUPLICATE_TOOL_CALL_IDS, SUPPORTS_NATIVE_SEQ_RANGES } from "./runtime.mjs";
 import { forwardEventShims } from "./forward-events.mjs";
 import { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
+import { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
+export { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 
 const HEALTH_RANK = [
   "header-frame-corrupt",
@@ -16,6 +19,7 @@ const HEALTH_RANK = [
   "failed-middle-frame",
   "seq-gap-committed",
   "unparsable-line",
+  "duplicate-tool-call-id",
   "seq-gap-tail",
   "message-missing-id",
   "lone-surrogate",
@@ -181,13 +185,15 @@ export function decodeSessionBuffer(buf) {
       issues.push({ code: "lone-surrogate", message: "isolated UTF-16 surrogate in payload" });
     }
   }
-  if (hasCompressedSeqRanges(finished.events) || hasCompressedSeqRanges(finished.overflow ?? [])) {
+  const compressedRanges =
+    hasCompressedSeqRanges(finished.events) || hasCompressedSeqRanges(finished.overflow ?? []);
+  if (compressedRanges && !SUPPORTS_NATIVE_SEQ_RANGES) {
     health = worse(health, "newer-format-ranges");
     if (!issues.some((i) => i.code === "newer-format-ranges")) {
       issues.push({
         code: "newer-format-ranges",
         message:
-          "sourceEventSeqs uses compressed [start,end] ranges (still labeled v0); current harness foldSurface rejects this — repair expands ranges into dense integers, not a seq gap",
+          "sourceEventSeqs uses compressed [start,end] ranges (still labeled v0); this harness cannot expand them — repair writes dense integers so foldSurface can load the file",
       });
     }
   }
@@ -209,6 +215,27 @@ export function decodeSessionBuffer(buf) {
         forwardShims.map((shim) => `${shim.type}@${shim.seq}`).join(", "),
       seqs: forwardShims.map((shim) => shim.seq),
     });
+  }
+  const duplicateIds = duplicateAdvertisedToolCallIds(finished.events);
+  if (duplicateIds.length > 0) {
+    const seqs = duplicateIds.map((d) => d.seq);
+    const message =
+      "assistant/message repeats advertised tool call at seq " +
+      seqs.join(", ") +
+      (MIGRATION_REFUSES_DUPLICATE_TOOL_CALL_IDS
+        ? " — 0.1.3+ v0→v1 migration refuses the session (#5909); repair suffixes later duplicates"
+        : " — v0 harness still loads; 0.1.3+ migration will refuse (#5909)");
+    if (MIGRATION_REFUSES_DUPLICATE_TOOL_CALL_IDS) {
+      health = worse(health, "duplicate-tool-call-id");
+    }
+    if (!issues.some((i) => i.code === "duplicate-tool-call-id")) {
+      issues.push({
+        code: "duplicate-tool-call-id",
+        message,
+        seqs,
+        callIds: duplicateIds.map((d) => d.callId),
+      });
+    }
   }
   const emptyIds = emptyToolCallIds(finished.events);
   if (emptyIds.length > 0) {

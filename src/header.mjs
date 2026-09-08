@@ -1,13 +1,14 @@
 /**
  * Session header (de)serialization aligned with
- * @deepseek-ai/dsh-session-persistence-jsonl@0.1.0-rc.6
+ * @deepseek-ai/dsh-session-persistence-jsonl (0.1.2-rc.1 v0 / 0.1.3+ v2).
  * (isHeaderLine / fromHeaderLine / toHeaderLine / refuseForeignFormatVersion /
  * parseHeaderRecord / parseHeaderMeta). Zero runtime deps — do not import
  * @deepseek-ai/*.
  */
+import { SESSION_FORMAT_VERSION as INSTALLED_FORMAT_VERSION } from "./runtime.mjs";
 
-/** On-disk format version this build reads. Any other number is foreign. */
-export const SESSION_FORMAT_VERSION = 0;
+/** Current logical version the installed harness writes. Historical gens are readable. */
+export const SESSION_FORMAT_VERSION = INSTALLED_FORMAT_VERSION;
 
 const RETIRED_ERROR = "session header uses retired policy baseline fields";
 const NOT_HEADER_ERROR = "corrupt session log: first line is not a session header";
@@ -16,7 +17,8 @@ const EMPTY_ERROR = "empty or header-less session log";
 
 /**
  * Official sessionFormatVersionRefusal: never call this corrupt.
- * Newer logs ask the user to upgrade; older logs have no upgrade path.
+ * Newer logs ask the user to upgrade. Older generations are migrated by
+ * 0.1.3+; we do not refuse them as foreign.
  */
 function sessionFormatVersionRefusal(id, version) {
   if (version > SESSION_FORMAT_VERSION) {
@@ -53,13 +55,14 @@ function asUtf8Buffer(value) {
   return null;
 }
 
-/** Type guard: a parsed first line is a well-formed session header. */
-export function isHeaderLine(value) {
+function isBaseHeader(value) {
   return (
     typeof value === "object" &&
     value !== null &&
     value.type === "session" &&
     typeof value.version === "number" &&
+    Number.isSafeInteger(value.version) &&
+    value.version >= 0 &&
     typeof value.id === "string" &&
     typeof value.createdAt === "number" &&
     Number.isSafeInteger(value.createdAt) &&
@@ -71,6 +74,22 @@ export function isHeaderLine(value) {
     !Object.is(value.delegationDepth, -0) &&
     (value.origin === void 0 || value.origin === "subagent") &&
     (value.agentPreset === void 0 || typeof value.agentPreset === "string")
+  );
+}
+
+/** Type guard: a parsed first line is a well-formed session header of any known generation. */
+export function isHeaderLine(value) {
+  if (!isBaseHeader(value)) return false;
+  if (value.version >= 2) {
+    return typeof value.isSeeded === "boolean" && value.seedLength === void 0;
+  }
+  return (
+    value.isSeeded === void 0 &&
+    (value.seedLength === void 0 ||
+      (typeof value.seedLength === "number" &&
+        Number.isSafeInteger(value.seedLength) &&
+        value.seedLength >= 0 &&
+        !Object.is(value.seedLength, -0)))
   );
 }
 
@@ -87,6 +106,7 @@ export function fromHeaderLine(line) {
     ...(line.cwd !== void 0 ? { cwd: line.cwd } : {}),
     ...(line.parentSession !== void 0 ? { parentSession: line.parentSession } : {}),
     ...(line.seedLength !== void 0 ? { seedLength: line.seedLength } : {}),
+    ...(line.isSeeded !== void 0 ? { isSeeded: line.isSeeded } : {}),
     ...(line.origin !== void 0 ? { origin: line.origin } : {}),
     delegationDepth: line.delegationDepth,
     ...(line.agentPreset !== void 0 ? { agentPreset: line.agentPreset } : {}),
@@ -103,6 +123,7 @@ export function toHeaderLine(header) {
     ...(header.cwd !== void 0 ? { cwd: header.cwd } : {}),
     ...(header.parentSession !== void 0 ? { parentSession: header.parentSession } : {}),
     ...(header.seedLength !== void 0 ? { seedLength: header.seedLength } : {}),
+    ...(header.isSeeded !== void 0 ? { isSeeded: header.isSeeded } : {}),
     ...(header.origin !== void 0 ? { origin: header.origin } : {}),
     delegationDepth: header.delegationDepth ?? 0,
     ...(header.agentPreset !== void 0 ? { agentPreset: header.agentPreset } : {}),
@@ -117,7 +138,7 @@ export function toHeaderLine(header) {
 function refuseForeignFormatVersion(parsed) {
   if (typeof parsed !== "object" || parsed === null) return;
   const { version, id } = parsed;
-  if (typeof version !== "number" || version === SESSION_FORMAT_VERSION) return;
+  if (typeof version !== "number" || version <= SESSION_FORMAT_VERSION) return;
   const error = new Error(sessionFormatVersionRefusal(typeof id === "string" ? id : String(id), version));
   error.code = "foreign-version";
   throw error;
@@ -131,7 +152,7 @@ function firstLineOf(buf) {
 function classifyParsed(parsed) {
   if (typeof parsed === "object" && parsed !== null) {
     const { version, id } = parsed;
-    if (typeof version === "number" && version !== SESSION_FORMAT_VERSION) {
+    if (typeof version === "number" && version > SESSION_FORMAT_VERSION) {
       return {
         ok: false,
         code: "foreign-version",

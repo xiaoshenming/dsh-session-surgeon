@@ -4,7 +4,7 @@ Copy a session ID from the sidebar ⋯ menu, then paste it into a new chat so th
 
 Also repairs DeepSeek Harness sessions that refuse to load — seq gap, torn zstd, lone surrogates, and events missing their message id. `inspect` also **warns** on dangling `tool/call` (no matching `tool/result` → next model request 400) but **will not invent** a fake result. 官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
 
-> Compatible with `@deepseek-ai/dsh@0.1.0-rc.6`.
+> Compatible with `@deepseek-ai/dsh@0.1.2-rc.1` and 0.1.3-alpha format generations (`session.vN.jsonl.zstd`). Catalog, seq-range handling, and format version follow the *installed* runtime.
 
 ## Why copy the session ID
 
@@ -55,7 +55,7 @@ Real crash families from official Discussions:
 - [#436](https://github.com/deepseek-ai/deepseek-harness/discussions/436) lone UTF-16 surrogate → permanent HTTP 400
 - [#674](https://github.com/deepseek-ai/deepseek-harness/discussions/674) leftover `.tmp` plaintext
 
-Default repair is dry-run. `--apply` writes `.bak.<utc>` first, never invents missing seqs, and fills missing message ids without dropping events. If a crash-recovery closer collided with a still-live writer (#1586), repair drops those synthetic closers and keeps the live tail instead of truncating at the first gap. A packed chunk row that overlaps already-committed seqs but continues through the cursor (#5151) keeps the uncommitted suffix. Compact refuses an unloadable file — repair first, with all writers stopped. Alpha compressed `sourceEventSeqs` ranges (#5160) are expanded into dense integers so current harness can fold the log — seq numbers already exist in the range; nothing is invented. A validated Alpha `model/selection` event is preserved and marked `ignorable: true` for rc.2; arbitrary unknown plugin events are never changed. Empty `tool_calls[].id` (#5182) is flagged `empty-tool-call-id`; repair will not invent an id.
+Default repair is dry-run. `--apply` writes `.bak.<utc>` first, never invents missing seqs, and fills missing message ids without dropping events. If a crash-recovery closer collided with a still-live writer (#1586), repair drops those synthetic closers and keeps the live tail instead of truncating at the first gap. A packed chunk row that overlaps already-committed seqs but continues through the cursor (#5151) keeps the uncommitted suffix. Compact refuses an unloadable file — repair first, with all writers stopped. Alpha compressed `sourceEventSeqs` ranges (#5160) are native on 0.1.2-rc.1+ (surgeon does not rewrite). Older rc.2 still cannot fold them — repair expands inclusive pairs into dense integers; nothing is invented. A validated Alpha `model/selection` event is preserved and marked `ignorable: true` for rc.2; arbitrary unknown plugin events are never changed. Empty `tool_calls[].id` (#5182) is flagged `empty-tool-call-id`; repair will not invent an id.
 
 ## CLI
 

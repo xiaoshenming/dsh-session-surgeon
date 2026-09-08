@@ -7,6 +7,7 @@ import { replaceLoneSurrogatesIn } from "./redact.mjs";
 import { stitchLiveWriterTail } from "./stitch.mjs";
 import { expandCompressedSeqRanges } from "./provenance.mjs";
 import { applyForwardEventShims } from "./forward-events.mjs";
+import { disambiguateDuplicateToolCallIds } from "./duplicates.mjs";
 
 const DEFAULT_STEPS = {
   tornTail: true,
@@ -17,6 +18,7 @@ const DEFAULT_STEPS = {
   packedOverlap: true,
   forwardEvents: true,
   compressedRanges: true,
+  duplicateToolCalls: true,
   loneSurrogate: true,
   messageId: true,
   closers: true,
@@ -118,7 +120,7 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
     }
   }
 
-  if (steps.compressedRanges) {
+  if (steps.compressedRanges && decoded.health === "newer-format-ranges") {
     try {
       const expanded = expandCompressedSeqRanges(events);
       if (expanded.expanded > 0) {
@@ -139,6 +141,20 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
         mustWrite: false,
         refuse: error instanceof Error ? error.message : "sourceEventSeqs range too large to expand",
       };
+    }
+  }
+
+  if (steps.duplicateToolCalls && decoded.health === "duplicate-tool-call-id") {
+    const rewritten = disambiguateDuplicateToolCallIds(events);
+    if (rewritten.rewritten > 0) {
+      events = rewritten.value;
+      actions.push({
+        code: "duplicate-tool-call-id",
+        detail:
+          "suffixed " +
+          rewritten.rewritten +
+          " later duplicate advertised tool-call id(s) in the same step (#5909)",
+      });
     }
   }
 

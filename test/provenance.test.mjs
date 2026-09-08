@@ -9,6 +9,7 @@ import {
   hasCompressedSeqRanges,
   isSeqRangePair,
 } from "../src/provenance.mjs";
+import { SUPPORTS_NATIVE_SEQ_RANGES } from "../src/runtime.mjs";
 
 const OFFICIAL_SESSION =
   "/home/ming/.nvm/versions/node/v22.19.0/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-session/lib/index.js";
@@ -60,14 +61,21 @@ test("decode flags compressed sourceEventSeqs as newer-format-ranges, not corrup
   assert.equal(hasCompressedSeqRanges(events), true);
   const buf = await encodeSession({ header, events, packChunks: false });
   const decoded = decodeSessionBuffer(buf);
-  assert.equal(decoded.health, "newer-format-ranges");
-  assert.ok(decoded.issues.some((i) => i.code === "newer-format-ranges"));
   const plan = planRepair(decoded);
   assert.equal(plan.refuse, undefined);
-  assert.equal(plan.mustWrite, true);
-  assert.ok(plan.actions.some((a) => a.code === "newer-format-ranges"));
-  assert.deepEqual(plan.events[2].sourceEventSeqs, [0, 1]);
-  assert.equal(hasCompressedSeqRanges(plan.events), false);
+  if (SUPPORTS_NATIVE_SEQ_RANGES) {
+    assert.notEqual(decoded.health, "newer-format-ranges");
+    assert.equal(plan.mustWrite, false);
+    assert.ok(!plan.actions.some((a) => a.code === "newer-format-ranges"));
+    assert.deepEqual(plan.events[2].sourceEventSeqs, [[0, 1]]);
+  } else {
+    assert.equal(decoded.health, "newer-format-ranges");
+    assert.ok(decoded.issues.some((i) => i.code === "newer-format-ranges"));
+    assert.equal(plan.mustWrite, true);
+    assert.ok(plan.actions.some((a) => a.code === "newer-format-ranges"));
+    assert.deepEqual(plan.events[2].sourceEventSeqs, [0, 1]);
+    assert.equal(hasCompressedSeqRanges(plan.events), false);
+  }
 });
 
 test("repair expansion is lossless for inclusive [start,end]", () => {
@@ -119,7 +127,9 @@ test("expanded events pass official foldSurface", async (t) => {
     }, { surfaceOp: "append", sourceEventSeqs: [[2, 2]] }),
     ev("turn/end", 4, { turn: 1, reason: { kind: "completed" } }),
   ];
-  assert.throws(() => foldSurface(events), /densely contain/);
+  if (!SUPPORTS_NATIVE_SEQ_RANGES) {
+    assert.throws(() => foldSurface(events), /densely contain/);
+  }
   const plan = planRepair({
     header,
     headerClass: { ok: true, code: "header-ok", header },
