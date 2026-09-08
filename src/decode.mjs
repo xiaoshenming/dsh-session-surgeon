@@ -7,6 +7,7 @@ import { MIGRATION_REFUSES_DUPLICATE_TOOL_CALL_IDS, SUPPORTS_NATIVE_SEQ_RANGES }
 import { forwardEventShims } from "./forward-events.mjs";
 import { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
 import { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
+import { flatReplayStateHits } from "./replay-state.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
 export { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 
@@ -20,6 +21,7 @@ const HEALTH_RANK = [
   "seq-gap-committed",
   "unparsable-line",
   "duplicate-tool-call-id",
+  "legacy-replay-state",
   "seq-gap-tail",
   "message-missing-id",
   "lone-surrogate",
@@ -235,6 +237,19 @@ export function decodeSessionBuffer(buf) {
         seqs,
         callIds: duplicateIds.map((d) => d.callId),
       });
+    }
+  }
+  const replayHits = flatReplayStateHits(finished.events);
+  if (replayHits.length > 0) {
+    const message =
+      "flat pi-ai replayState (unexpected member kind) at seq " +
+      replayHits.join(", ") +
+      (MIGRATION_REFUSES_DUPLICATE_TOOL_CALL_IDS
+        ? " — 0.1.3+ v0→v1 migration refuses (#5694/#5909); repair wraps into {response,blocks}"
+        : " — v0 harness still loads; 0.1.3+ migration will refuse (#5694/#5909)");
+    if (MIGRATION_REFUSES_DUPLICATE_TOOL_CALL_IDS) health = worse(health, "legacy-replay-state");
+    if (!issues.some((i) => i.code === "legacy-replay-state")) {
+      issues.push({ code: "legacy-replay-state", message, seqs: replayHits });
     }
   }
   const emptyIds = emptyToolCallIds(finished.events);

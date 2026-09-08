@@ -118,6 +118,7 @@
 5b. newer-format-ranges：仅当本机没有 `decodeSeqRanges` 时把 sourceEventSeqs 的 [start,end] 展开成包含端点的密集整数
 5c. forward-event-shim：仅对结构校验通过的官方 Alpha `model/selection` 加 `ignorable: true`，不删行、不改 seq/data
 5d. duplicate-tool-call-id：仅当本机 format version ≥ 1 时给同一步后出现的重复 callId 加 `#n`，并按顺序重映射 tool/call 与 tool/result
+5e. legacy-replay-state：仅当本机 format ≥ 1 时把扁平 pi-ai replayState 包成 `{response, blocks}`
 6. 合成 closer
 7. 重跑 decode，seq 必须连续，否则拒绝 --apply
 8. header 解不出 → 只报告不写

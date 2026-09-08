@@ -8,6 +8,7 @@ import { stitchLiveWriterTail } from "./stitch.mjs";
 import { expandCompressedSeqRanges } from "./provenance.mjs";
 import { applyForwardEventShims } from "./forward-events.mjs";
 import { disambiguateDuplicateToolCallIds } from "./duplicates.mjs";
+import { wrapFlatReplayStates } from "./replay-state.mjs";
 
 const DEFAULT_STEPS = {
   tornTail: true,
@@ -19,6 +20,7 @@ const DEFAULT_STEPS = {
   forwardEvents: true,
   compressedRanges: true,
   duplicateToolCalls: true,
+  legacyReplayState: true,
   loneSurrogate: true,
   messageId: true,
   closers: true,
@@ -141,6 +143,20 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
         mustWrite: false,
         refuse: error instanceof Error ? error.message : "sourceEventSeqs range too large to expand",
       };
+    }
+  }
+
+  if (steps.legacyReplayState && decoded.health === "legacy-replay-state") {
+    const wrapped = wrapFlatReplayStates(events);
+    if (wrapped.wrapped > 0) {
+      events = wrapped.value;
+      actions.push({
+        code: "legacy-replay-state",
+        detail:
+          "wrapped " +
+          wrapped.wrapped +
+          " flat pi-ai replayState field(s) into {response, blocks} (#5694/#5909)",
+      });
     }
   }
 

@@ -80,6 +80,7 @@ window.__ModuleLoader__.load({
           "message-missing-id": ["消息缺 ID", "官方会整段拒读。修复只补 id，不丢内容。"],
           "empty-tool-call-id": ["空工具调用 ID", "文件能打开，但下次请求会 400（id cannot be empty）。只定位，不会编假 callId。根因在引擎出栈过滤。"],
           "duplicate-tool-call-id": ["重复工具调用 ID", "同一步里多次通告同一个 callId。0.1.3 起 v0→v1 迁移会拒读（#5909）。修复只给后出现的 id 加 #n 后缀，不编空 id。"],
+          "legacy-replay-state": ["旧 replayState", "pi-ai 把 {kind,...} 写在 replayState 根上。0.1.3 迁移只认 {response,blocks}（#5694/#5909）。修复只把原字段挪进 response，不编内容。"],
           "dangling-tool-call": ["悬空工具调用", "文件能打开，但下次模型请求会永久 400。只定位，不会编假 tool/result。"],
           "unknown-type": ["未知事件类型", "会报告，不会删行，也不会盖 ignorable。"]
         }
@@ -156,6 +157,7 @@ window.__ModuleLoader__.load({
           "message-missing-id": ["Message missing ID", "The official loader rejects the whole section. Repair only fills ids; nothing is dropped."],
           "empty-tool-call-id": ["Empty tool-call ID", "The file opens, but the next request 400s (id cannot be empty). Only located, no fake callId is invented. Root cause is in the engine's stack filtering."],
           "duplicate-tool-call-id": ["Duplicate tool-call ID", "The same callId is advertised twice in one step. 0.1.3+ v0→v1 migration refuses the session (#5909). Repair suffixes later ids with #n; empty ids are never invented."],
+          "legacy-replay-state": ["Legacy replayState", "pi-ai stored {kind,...} at the replayState root. 0.1.3 migration only admits {response,blocks} (#5694/#5909). Repair moves existing keys under response; nothing is invented."],
           "dangling-tool-call": ["Dangling tool call", "The file opens, but the next model request will 400 forever. Only located, no fake tool/result is invented."],
           "unknown-type": ["Unknown event type", "Reported; no rows deleted, nothing marked ignorable."]
         }
@@ -232,6 +234,7 @@ window.__ModuleLoader__.load({
           "message-missing-id": ["Bericht zonder ID", "De officiële lader wijst het hele stuk af. Reparatie vult alleen id's aan; er gaat niets verloren."],
           "empty-tool-call-id": ["Lege tool-call-ID", "Het bestand opent, maar de volgende aanvraag geeft 400 (id cannot be empty). Wordt alleen gelokaliseerd, er wordt geen nep-callId verzonnen. De oorzaak ligt in de stackfiltering van de engine."],
           "duplicate-tool-call-id": ["Dubbele tool-call-ID", "Hetzelfde callId wordt in één stap twee keer aangekondigd. Vanaf 0.1.3 weigert de v0→v1-migratie de sessie (#5909). Reparatie zet #n achter latere id's; lege id's worden nooit verzonnen."],
+          "legacy-replay-state": ["Oude replayState", "pi-ai zette {kind,...} op de replayState-wortel. De 0.1.3-migratie accepteert alleen {response,blocks} (#5694/#5909). Reparatie verplaatst bestaande sleutels naar response; er wordt niets verzonnen."],
           "dangling-tool-call": ["Hangende tool-aanroep", "Het bestand opent, maar de volgende modelaanvraag blijft 400 geven. Wordt alleen gelokaliseerd, er wordt geen nep-tool/resultaat verzonnen."],
           "unknown-type": ["Onbekend gebeurtenistype", "Wordt gemeld; er worden geen regels verwijderd en niets wordt als ignorable gemarkeerd."]
         }
