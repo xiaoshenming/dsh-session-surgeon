@@ -120,6 +120,7 @@ git push SSL EOF 时：Contents API PUT 到 `xiaoshenming/dsh-session-surgeon`�
 - #1586 live-writer-tail：丢掉崩溃恢复闭包，保住还活着的写者
 - #5151 packed-overlap-suffix：前缀必须与已提交事件一致才接下后缀
 - #5160 newer-format-ranges：仅当本机 harness **没有** `decodeSeqRanges`（rc.2）时展开；0.1.2-rc.1+ 原生能读，不改文件
+- 0.1.5 迁移拒绝家族（#6151/#6175/#6189/#6194，src/migrate.mjs）：`v0-preset-extra-member` 只留 preset、`v0-descriptor-version` 2→3、`v0-plugin-source-form` 补 form 或去展示成员、`v0-chunk-provenance` 改引用磁盘分块 seq。仅当本机 format ≥ 1；未知类型（session/imported、插件消息）迁移连 ignorable 都拒，我们只报告不删
 - #5909 duplicate-tool-call-id：同一步重复通告的 callId；仅当本机 format version ≥ 1（0.1.3 迁移会拒读）时给后面的 id 加 `#n`。不编空 id。v2 文件名是 `session.vN.jsonl.zstd`
 - #5694/#5909 legacy-replay-state：扁平 `{kind,...}` replayState 包成 `{response,blocks}`；仅 format ≥ 1 时改写
 - Alpha → rc.2 `model/selection`：结构校验通过后只加 `ignorable: true`；保留 type/data/seq/time

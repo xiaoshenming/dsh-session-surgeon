@@ -5,7 +5,7 @@ import { backupThenWrite, encodeSession } from "./encode.mjs";
 import { interruptedTurnClosers } from "./closers.mjs";
 import { replaceLoneSurrogatesIn } from "./redact.mjs";
 import { stitchLiveWriterTail } from "./stitch.mjs";
-import { expandCompressedSeqRanges } from "./provenance.mjs";
+import { applyMigrationFixes, MIGRATES_V0_ON_LOAD } from "./migrate.mjs";
 import { applyForwardEventShims } from "./forward-events.mjs";
 import { disambiguateDuplicateToolCallIds } from "./duplicates.mjs";
 import { wrapFlatReplayStates } from "./replay-state.mjs";
@@ -19,6 +19,7 @@ const DEFAULT_STEPS = {
   packedOverlap: true,
   forwardEvents: true,
   compressedRanges: true,
+  v0Migration: true,
   duplicateToolCalls: true,
   legacyReplayState: true,
   loneSurrogate: true,
@@ -122,26 +123,22 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
     }
   }
 
-  if (steps.compressedRanges && decoded.health === "newer-format-ranges") {
+  if (steps.compressedRanges && decoded.health === "newer-format-ranges" ||
+      (steps.v0Migration && MIGRATES_V0_ON_LOAD &&
+       typeof decoded.health === "string" && decoded.health.startsWith("v0-"))) {
     try {
-      const expanded = expandCompressedSeqRanges(events);
-      if (expanded.expanded > 0) {
-        events = expanded.value;
-        actions.push({
-          code: "newer-format-ranges",
-          detail:
-            "expanded " +
-            expanded.expanded +
-            " sourceEventSeqs field(s) from compressed [start,end] ranges into dense integers",
-        });
-      }
+      const fixed = applyMigrationFixes(events, {
+        expandRanges: steps.compressedRanges && decoded.health === "newer-format-ranges",
+      });
+      events = fixed.value;
+      actions.push(...fixed.actions);
     } catch (error) {
       return {
         actions,
         events,
         header,
         mustWrite: false,
-        refuse: error instanceof Error ? error.message : "sourceEventSeqs range too large to expand",
+        refuse: error instanceof Error ? error.message : "migration fix failed",
       };
     }
   }

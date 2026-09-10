@@ -81,6 +81,10 @@ window.__ModuleLoader__.load({
           "empty-tool-call-id": ["空工具调用 ID", "文件能打开，但下次请求会 400（id cannot be empty）。只定位，不会编假 callId。根因在引擎出栈过滤。"],
           "duplicate-tool-call-id": ["重复工具调用 ID", "同一步里多次通告同一个 callId。0.1.3 起 v0→v1 迁移会拒读（#5909）。修复只给后出现的 id 加 #n 后缀，不编空 id。"],
           "legacy-replay-state": ["旧 replayState", "pi-ai 把 {kind,...} 写在 replayState 根上。0.1.3 迁移只认 {response,blocks}（#5694/#5909）。修复只把原字段挪进 response，不编内容。"],
+          "v0-preset-extra-member": ["权限事件多余字段", "旧版写入的 permission/preset 带了 origin 等多余成员，0.1.5 迁移拒读（#6189）。修复只保留 preset，权限设置不变。"],
+          "v0-descriptor-version": ["子代理描述版本", "subagent/descriptor 的 version 不是 3，0.1.5 迁移拒读（#6151）。两种版本字段相同，修复改成 3。"],
+          "v0-plugin-source-form": ["插件消息来源形态", "插件消息来源的 summary/sections 与 form 不匹配，0.1.5 迁移拒读（#6194）。修复只补 form 或去掉展示用的 summary，不改正文。"],
+          "v0-chunk-provenance": ["分块溯源不完整", "assistant/message 引用的分块不是同一轮的完整有序一段，0.1.5 迁移拒读（#6175）。修复改成引用磁盘上已有的分块序号，不发明。"],
           "dangling-tool-call": ["悬空工具调用", "文件能打开，但下次模型请求会永久 400。只定位，不会编假 tool/result。"],
           "unknown-type": ["未知事件类型", "会报告，不会删行，也不会盖 ignorable。"]
         }
@@ -158,6 +162,10 @@ window.__ModuleLoader__.load({
           "empty-tool-call-id": ["Empty tool-call ID", "The file opens, but the next request 400s (id cannot be empty). Only located, no fake callId is invented. Root cause is in the engine's stack filtering."],
           "duplicate-tool-call-id": ["Duplicate tool-call ID", "The same callId is advertised twice in one step. 0.1.3+ v0→v1 migration refuses the session (#5909). Repair suffixes later ids with #n; empty ids are never invented."],
           "legacy-replay-state": ["Legacy replayState", "pi-ai stored {kind,...} at the replayState root. 0.1.3 migration only admits {response,blocks} (#5694/#5909). Repair moves existing keys under response; nothing is invented."],
+          "v0-preset-extra-member": ["Extra permission member", "Legacy permission/preset events carry extra members like origin; the 0.1.5 migration refuses them (#6189). Repair keeps only preset — the effective permission is unchanged."],
+          "v0-descriptor-version": ["Subagent descriptor version", "subagent/descriptor data.version is not 3, which the 0.1.5 migration refuses (#6151). Both versions share the same member shape; repair sets 3."],
+          "v0-plugin-source-form": ["Plugin source form", "A plugin message source pairs summary/sections with the wrong form; the 0.1.5 migration refuses (#6194). Repair adds the matching form or drops the display-only member — body text is untouched."],
+          "v0-chunk-provenance": ["Incomplete chunk provenance", "An assistant/message cites chunks that are not one complete ordered attempt; the 0.1.5 migration refuses (#6175). Repair cites the chunk seqs already on disk — nothing invented."],
           "dangling-tool-call": ["Dangling tool call", "The file opens, but the next model request will 400 forever. Only located, no fake tool/result is invented."],
           "unknown-type": ["Unknown event type", "Reported; no rows deleted, nothing marked ignorable."]
         }
@@ -235,6 +243,10 @@ window.__ModuleLoader__.load({
           "empty-tool-call-id": ["Lege tool-call-ID", "Het bestand opent, maar de volgende aanvraag geeft 400 (id cannot be empty). Wordt alleen gelokaliseerd, er wordt geen nep-callId verzonnen. De oorzaak ligt in de stackfiltering van de engine."],
           "duplicate-tool-call-id": ["Dubbele tool-call-ID", "Hetzelfde callId wordt in één stap twee keer aangekondigd. Vanaf 0.1.3 weigert de v0→v1-migratie de sessie (#5909). Reparatie zet #n achter latere id's; lege id's worden nooit verzonnen."],
           "legacy-replay-state": ["Oude replayState", "pi-ai zette {kind,...} op de replayState-wortel. De 0.1.3-migratie accepteert alleen {response,blocks} (#5694/#5909). Reparatie verplaatst bestaande sleutels naar response; er wordt niets verzonnen."],
+          "v0-preset-extra-member": ["Extra permissieveld", "Oude permission/preset-gebeurtenissen bevatten extra leden zoals origin; de 0.1.5-migratie weigert die (#6189). Reparatie houdt alleen preset over — de effectieve permissie verandert niet."],
+          "v0-descriptor-version": ["Subagent-descriptorversie", "subagent/descriptor data.version is geen 3; de 0.1.5-migratie weigert dat (#6151). Beide versies hebben dezelfde velden; reparatie zet 3."],
+          "v0-plugin-source-form": ["Plug-in-bronvorm", "Een plug-in-berichtbron combineert summary/sections met de verkeerde form; de 0.1.5-migratie weigert dat (#6194). Reparatie vult de juiste form aan of verwijdert het louter decoratieve lid — de tekst blijft onaangetast."],
+          "v0-chunk-provenance": ["Onvolledige chunk-herkomst", "Een assistant/message verwijst niet naar één complete geordende chunk-poging; de 0.1.5-migratie weigert dat (#6175). Reparatie verwijst naar de chunk-seqs die al op schijf staan — niets verzonnen."],
           "dangling-tool-call": ["Hangende tool-aanroep", "Het bestand opent, maar de volgende modelaanvraag blijft 400 geven. Wordt alleen gelokaliseerd, er wordt geen nep-tool/resultaat verzonnen."],
           "unknown-type": ["Onbekend gebeurtenistype", "Wordt gemeld; er worden geen regels verwijderd en niets wordt als ignorable gemarkeerd."]
         }

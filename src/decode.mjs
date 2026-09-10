@@ -8,6 +8,7 @@ import { forwardEventShims } from "./forward-events.mjs";
 import { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
 import { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 import { flatReplayStateHits } from "./replay-state.mjs";
+import { MIGRATES_V0_ON_LOAD, migrationRefusalIssues } from "./migrate.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
 export { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 
@@ -22,6 +23,10 @@ const HEALTH_RANK = [
   "unparsable-line",
   "duplicate-tool-call-id",
   "legacy-replay-state",
+  "v0-preset-extra-member",
+  "v0-descriptor-version",
+  "v0-plugin-source-form",
+  "v0-chunk-provenance",
   "seq-gap-tail",
   "message-missing-id",
   "lone-surrogate",
@@ -250,6 +255,15 @@ export function decodeSessionBuffer(buf) {
     if (MIGRATION_REFUSES_DUPLICATE_TOOL_CALL_IDS) health = worse(health, "legacy-replay-state");
     if (!issues.some((i) => i.code === "legacy-replay-state")) {
       issues.push({ code: "legacy-replay-state", message, seqs: replayHits });
+    }
+  }
+  const migrationHits = migrationRefusalIssues(finished.events);
+  if (migrationHits.length > 0) {
+    if (MIGRATES_V0_ON_LOAD) {
+      for (const hit of migrationHits) health = worse(health, hit.code);
+    }
+    if (!issues.some((i) => i.code === migrationHits[0].code)) {
+      issues.push(...migrationHits);
     }
   }
   const emptyIds = emptyToolCallIds(finished.events);
