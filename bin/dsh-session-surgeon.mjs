@@ -21,7 +21,7 @@ Usage / 用法:
   dsh-session-surgeon export <id> [root] [--no-redact] [--out file]
   dsh-session-surgeon index [root] [--format json|text]
 
-Defaults / 默认: root=~/.dsh/sessions (or $DSH_SESSION_ROOT);
+Defaults / 默认: root=$DSH_SESSION_ROOT, else $DSH_HOME/sessions, else ~/.dsh/sessions;
 repair/compact are dry-run / 默认只预览;
 export redacts secrets unless --no-redact / 导出默认脱敏。
 `);

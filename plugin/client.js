@@ -17,6 +17,8 @@ window.__ModuleLoader__.load({
           "pickHint": "点左边一条看对话。每个工作区各自存一套会话；有 session- 前缀和没有前缀只是新旧 ID 写法不同。",
           "repairHint": "只有打不开时，才需要「先看会改什么 / 修好」。",
           "emptyScan": "还没有扫描结果",
+          "scanRoot": "扫描目录",
+          "emptyHint": "会话不在这个目录时：插件按本机 harness 的 DSH_HOME 找会话（默认 ~/.dsh/sessions），也可以用 DSH_SESSION_ROOT 指定。",
           "loadingChat": "正在读对话…",
           "chatFail": "读对话失败：",
           "chatEmpty": "这个文件里还没有可读的用户/助手消息。",
@@ -100,6 +102,8 @@ window.__ModuleLoader__.load({
           "pickHint": "Click a session on the left to read it. Each workspace keeps its own set of sessions; with or without the session- prefix is just an old/new ID spelling.",
           "repairHint": "Only when a session will not open do you need the “preview repair / repair” actions.",
           "emptyScan": "Nothing scanned yet",
+          "scanRoot": "Scanned root",
+          "emptyHint": "If your sessions live elsewhere: the plugin follows the host's DSH_HOME (default ~/.dsh/sessions); set DSH_SESSION_ROOT to point somewhere else.",
           "loadingChat": "Reading conversation…",
           "chatFail": "Could not read the conversation: ",
           "chatEmpty": "This file has no readable user/assistant messages yet.",
@@ -183,6 +187,8 @@ window.__ModuleLoader__.load({
           "pickHint": "Klik links op een sessie om hem te lezen. Elke werkruimte heeft zijn eigen set sessies; met of zonder het session- voorvoegsel is alleen een oud/nieuw-ID-schrijfwijze.",
           "repairHint": "Alleen als een sessie niet opent, heb je de acties “wijzigingen bekijken / repareren” nodig.",
           "emptyScan": "Nog niets gescand",
+          "scanRoot": "Gescande map",
+          "emptyHint": "Staan je sessies ergens anders? De plug-in volgt de DSH_HOME van de host (standaard ~/.dsh/sessions); zet DSH_SESSION_ROOT om een andere map te kiezen.",
           "loadingChat": "Gesprek lezen…",
           "chatFail": "Gesprek kon niet worden gelezen: ",
           "chatEmpty": "Dit bestand bevat nog geen leesbare gebruiker/assistent-berichten.",
@@ -392,12 +398,17 @@ window.__ModuleLoader__.load({
     }
     function mountPanel(controller, ctx) {
       let container;
-      const state = { rows: [], selected: "", detail: "", raw: "", busy: false, scanned: false, chat: null, titles: {} };
+      const state = { rows: [], selected: "", detail: "", raw: "", busy: false, scanned: false, chat: null, titles: {}, root: "", scanError: "" };
       const selectedRow = () => state.rows.find((r) => sessionIdOf(r) === state.selected);
         const listHtml = () => {
           const groups = new Map();
           for (const row of state.rows) { const key = workspaceOf(row); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row); }
-          return [...groups].flatMap(([name, rows]) => ['<div class="ss-group">' + esc(name) + " · " + rows.length + "</div>", ...rows.map((row) => { const id = sessionIdOf(row); const h = healthOf(row); return '<div class="ss-row" data-id="' + id + '"' + (id === state.selected ? " data-on" : "") + '><span class="ss-id"><span class="ss-title">' + esc(state.titles[id] || id.replace(/^session-/, "")) + '</span><span class="ss-sid">' + esc(id) + '</span></span><span class="ss-badge' + (isBad(h) ? " bad" : "") + '">' + esc(labelOf(h)) + "</span></div>"; })]).join("") || '<div class="ss-note">' + T("emptyScan") + "</div>";
+          const rootLine = state.root ? '<div class="ss-root">' + T("scanRoot") + " " + esc(state.root) + " · " + state.rows.length + "</div>" : "";
+          const empty = '<div class="ss-note">' + T("emptyScan")
+            + (state.root ? "<br>" + T("scanRoot") + " " + esc(state.root) : "")
+            + (state.scanError ? "<br>" + T("explain.error") + esc(state.scanError) : "<br>" + T("emptyHint"))
+            + "</div>";
+          return rootLine + ([...groups].flatMap(([name, rows]) => ['<div class="ss-group">' + esc(name) + " · " + rows.length + "</div>", ...rows.map((row) => { const id = sessionIdOf(row); const h = healthOf(row); return '<div class="ss-row" data-id="' + id + '"' + (id === state.selected ? " data-on" : "") + '><span class="ss-id"><span class="ss-title">' + esc(state.titles[id] || id.replace(/^session-/, "")) + '</span><span class="ss-sid">' + esc(id) + '</span></span><span class="ss-badge' + (isBad(h) ? " bad" : "") + '">' + esc(labelOf(h)) + "</span></div>"; })]).join("") || empty);
         };
         const chatHtml = () => {
           const chat = state.chat;
@@ -449,8 +460,18 @@ window.__ModuleLoader__.load({
         render();
       };
       const scan = () => run(T("busyScan"), async () => {
-        const data = await api(API + "/scan");
+        let data;
+        try {
+          data = await api(API + "/scan");
+        } catch (error) {
+          state.rows = [];
+          state.scanned = true;
+          state.scanError = String(error?.message || error);
+          throw error;
+        }
         state.rows = data.sessions || [];
+        state.root = data.root || "";
+        state.scanError = data.error || "";
         state.scanned = true;
         if (!state.selected && state.rows[0]) state.selected = sessionIdOf(state.rows[0]);
         if (state.selected) loadChat(state.selected);

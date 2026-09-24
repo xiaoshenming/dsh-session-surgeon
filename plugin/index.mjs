@@ -68,7 +68,7 @@ async function registerTools(ctx) {
       description:
         "List DeepSeek Harness sessions under a root and report header-level health (seq/zstd issues need session_inspect).",
       parameters: {
-        root: { type: "string", description: "Session root. Defaults to ~/.dsh/sessions." },
+        root: { type: "string", description: "Session root. Defaults to $DSH_SESSION_ROOT, else $DSH_HOME/sessions, else ~/.dsh/sessions." },
       },
       output: jsonOutput,
       async execute(args) {
@@ -85,7 +85,7 @@ async function registerTools(ctx) {
         "Decode every zstd frame of one session, expand packed rows, and report seq gaps / torn tails / missing message ids / dangling tool/call (no matching tool/result). Does not include user message bodies. Does not invent missing tool results.",
       parameters: {
         id: { type: "string", required: true, description: "Session id or unique prefix." },
-        root: { type: "string", description: "Session root. Defaults to ~/.dsh/sessions." },
+        root: { type: "string", description: "Session root. Defaults to $DSH_SESSION_ROOT, else $DSH_HOME/sessions, else ~/.dsh/sessions." },
       },
       output: jsonOutput,
       async execute(args) {
@@ -101,7 +101,7 @@ async function registerTools(ctx) {
         "Plan or apply a repair for a session that the official loader refuses. Default is dry-run; set apply=true to write (creates .bak.<utc> first).",
       parameters: {
         id: { type: "string", required: true, description: "Session id or unique prefix." },
-        root: { type: "string", description: "Session root. Defaults to ~/.dsh/sessions." },
+        root: { type: "string", description: "Session root. Defaults to $DSH_SESSION_ROOT, else $DSH_HOME/sessions, else ~/.dsh/sessions." },
         apply: { type: "boolean", description: "Write the repaired file. Default false." },
       },
       output: jsonOutput,

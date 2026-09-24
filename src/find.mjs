@@ -1,12 +1,23 @@
 import { readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { SESSION_FORMAT_VERSION } from "./runtime.mjs";
 import { isGenerationTmpName, parseGenerationFilename, pickCanonicalGeneration } from "./generations.mjs";
 
-/** Session root: $DSH_SESSION_ROOT or ~/.dsh/sessions. */
+/**
+ * Session root in the same order the host resolves it:
+ * $DSH_SESSION_ROOT, then $DSH_HOME/sessions, then ~/.dsh/sessions.
+ *
+ * A host started with a separate DSH_HOME (e.g. the documented dev setup
+ * `DSH_HOME=~/.dsh-surgeon-dev`) keeps its sessions there, so resolving only
+ * `~/.dsh` lists nothing and looks like "no sessions exist".
+ */
 export function defaultSessionRoot() {
-  return process.env.DSH_SESSION_ROOT ?? join(homedir(), ".dsh", "sessions");
+  const explicit = process.env.DSH_SESSION_ROOT;
+  if (explicit) return resolve(explicit);
+  const home = process.env.DSH_HOME;
+  if (home) return resolve(home, "sessions");
+  return join(homedir(), ".dsh", "sessions");
 }
 
 async function exists(path) {

@@ -5,7 +5,7 @@
 - `@deepseek-ai/dsh-session-persistence-jsonl`
 - `@deepseek-ai/dsh-session`（`packChunkRuns` / `decodeStorageRecord` / `interruptedTurnClosers`）
 
-本机实测根：`~/.dsh/sessions/--home-ming--/`。
+会话根：`$DSH_SESSION_ROOT` → `$DSH_HOME/sessions` → `~/.dsh/sessions`（本机开发环境用 `DSH_HOME=~/.dsh-surgeon-dev`）。
 
 ---
 

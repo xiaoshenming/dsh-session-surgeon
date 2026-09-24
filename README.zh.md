@@ -45,7 +45,7 @@ export DSH_HOME="$HOME/.dsh-surgeon-dev"
 ./node_modules/.bin/dsh web
 ```
 
-`DSH_HOME` 将开发会话与日常会话隔离。不要用 npm 重装此开发环境：当前 DSH 的工具调度器依赖单一 `@deepseek-ai/dsh-tools` 模块实例，npm 的重复实体副本可能让工具调用报 `reading 'prepare'`。
+`DSH_HOME` 将开发会话与日常会话隔离，面板和 CLI 都跟着它找会话（`$DSH_HOME/sessions`，`DSH_SESSION_ROOT` 可覆盖）。不要用 npm 重装此开发环境：当前 DSH 的工具调度器依赖单一 `@deepseek-ai/dsh-tools` 模块实例，npm 的重复实体副本可能让工具调用报 `reading 'prepare'`。
 
 在能加载本仓库技能的对话里，说一句 **更新**（或 **更新插件**）即可：扫官方 Discussions、吸收对口反馈、改代码、写 CHANGELOG、回复、用 px 推 `main`。技能正文：[skills/dsh-session-surgeon-update/SKILL.md](./skills/dsh-session-surgeon-update/SKILL.md)。如果 agent 的技能目录里没列出它，就直接让它读这份文件 —— 纯 markdown 流程，不需要注册。
 

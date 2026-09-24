@@ -70,7 +70,18 @@ export function makeRoutes() {
         if (!isLoopback(req)) return writeJson(res, 403, { error: "loopback-only" });
         if (req.method !== "GET") return writeJson(res, 405, { error: "GET only" });
         const root = queryOf(req).get("root") || defaultSessionRoot();
-        writeJson(res, 200, await scanAll(root));
+        try {
+          writeJson(res, 200, await scanAll(root));
+        } catch (error) {
+          // An unreadable root is a listing answer, not a server crash: the
+          // panel has to show which directory it looked at and why it failed.
+          writeJson(res, 200, {
+            root,
+            count: 0,
+            sessions: [],
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
       }),
     },
     {

@@ -27,6 +27,7 @@ html[data-dsh-surgeon-active] [data-dsh-surgeon-view]{display:flex;align-items:s
 [data-dsh-surgeon-view] .ss-idbox{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0 8px;padding:10px 12px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;font:13px ui-monospace,monospace;word-break:break-all}
 [data-dsh-surgeon-view] .ss-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
 [data-dsh-surgeon-view] .ss-note{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:1.55}
+[data-dsh-surgeon-view] .ss-root{margin:2px 6px 8px;color:var(--dsw-alias-label-secondary);font:11px ui-monospace,monospace;word-break:break-all}
 [data-dsh-surgeon-view] .ss-chat{display:flex;flex-direction:column;gap:10px;margin-top:14px}
 [data-dsh-surgeon-view] .ss-msg{max-width:min(72ch,100%)}
 [data-dsh-surgeon-view] .ss-msg.user{align-self:flex-end}
