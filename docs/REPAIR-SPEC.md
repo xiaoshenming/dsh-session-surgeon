@@ -1,6 +1,6 @@
 # 修复规格（对齐官方 loader）
 
-目标：`repair --apply` 之后的文件，必须能被**本机已安装**的 `@deepseek-ai/dsh-session-persistence-jsonl`（现为 0.1.2-rc.1）的 `load()` 接受，并且重放后 turn/step/tool 闭合。
+目标：`repair --apply` 之后的文件，必须能被**本机已安装**的 `@deepseek-ai/dsh-session-persistence-jsonl`（现为 0.1.7-rc.1，格式 v4；v0–v4 代际同一套合同）的 `load()` 接受，并且重放后 turn/step/tool 闭合。
 
 官方只修 torn tail。下面每一条都是「官方拒载、我们才动手」的合同。
 

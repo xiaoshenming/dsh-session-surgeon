@@ -16,7 +16,7 @@
   --<normalized-cwd>--/               # projectKey(cwd)，有损
     <encodeSegment(sessionId)>/
       session.jsonl.zstd              # v0，compression 默认 zstd
-      session.vN.jsonl.zstd           # 0.1.3+ 代际（N>=1）；当前 alpha 写 v2
+      session.vN.jsonl.zstd           # 0.1.3+ 代际（N>=1）；0.1.7-rc.1 写 v4
       session.jsonl                   # 仅 compression: none
 ```
 

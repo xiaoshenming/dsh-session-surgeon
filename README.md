@@ -4,7 +4,7 @@ Copy a session ID from the sidebar ⋯ menu, then paste it into a new chat so th
 
 Also repairs DeepSeek Harness sessions that refuse to load — seq gap, torn zstd, lone surrogates, and events missing their message id. `inspect` also **warns** on dangling `tool/call` (no matching `tool/result` → next model request 400) but **will not invent** a fake result. 官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
 
-> Compatible with `@deepseek-ai/dsh@0.1.2-rc.1` and 0.1.3-alpha format generations (`session.vN.jsonl.zstd`). Catalog, seq-range handling, and format version follow the *installed* runtime.
+> Verified against `@deepseek-ai/dsh@0.1.7-rc.1` (format **v4**); `session.vN.jsonl.zstd` from every released generation (v0 … v4) is inspected and repaired the same way. Catalog, seq-range handling, and format version follow the *installed* runtime.
 
 ## Why copy the session ID
 
