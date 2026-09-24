@@ -95,6 +95,7 @@ window.__ModuleLoader__.load({
           "v0-chunk-provenance": ["分块溯源不完整", "assistant/message 引用的分块不是同一轮的完整有序一段，0.1.5 迁移拒读（#6175）。修复改成引用磁盘上已有的分块序号，不发明。"],
           "v0-retired-source-kind": ["退役的来源类型", "消息 source.kind 是已退役的字面量（如 instruction-hint），0.1.5 的 v2→v3 迁移按未分类拒读（#6559）。键集与新的 plugin 形态相同，修复只改名。"],
           "v0-inbox-inserted-message": ["插入消息缺字段", "agent/inbox/spliced 插入的消息缺 id/role，v0→v1 转换器拒读（#6559）。修复补 id 与校验器自己写死的 user 角色，正文不动。"],
+          "v4-literal-plugin-source": ["v4 插件来源字面量", "消息 source 还是退役的 {kind:\"plugin\"} 包装；v4 要求 producer 自己的 kind，官方读盘会整份拒收（#7772）。producer kind 由包名推导，离线补不出来 —— 只报告，不猜。"],
           "dangling-tool-call": ["悬空工具调用", "下次模型请求会永久 400；在 0.1.7 上整条会话可能根本打不开 —— v3→v4 的 restore 与读一份已存的 v4 日志都会因此拒收。结果只能补在还开着的 step 里，离线补不了 —— 只定位，不编假 tool/result。"],
           "unknown-type": ["未知事件类型", "会报告，不会删行，也不会盖 ignorable。"]
         }
@@ -186,6 +187,7 @@ window.__ModuleLoader__.load({
           "v0-chunk-provenance": ["Incomplete chunk provenance", "An assistant/message cites chunks that are not one complete ordered attempt; the 0.1.5 migration refuses (#6175). Repair cites the chunk seqs already on disk — nothing invented."],
           "v0-retired-source-kind": ["Retired source kind", "A message source.kind is a retired literal (e.g. instruction-hint); the 0.1.5 v2→v3 migration refuses it as unclassified (#6559). The member set matches the current plugin shape, so repair renames the kind only."],
           "v0-inbox-inserted-message": ["Inserted message fields", "An agent/inbox/spliced inserted message lacks id/role, which the v0→v1 converter refuses (#6559). Repair fills an id and the validator's own user role; body text is untouched."],
+          "v4-literal-plugin-source": ["v4 plugin source literal", "A message source still carries the retired {kind:\"plugin\"} wrapper. Format v4 requires a producer-owned kind and this harness refuses the whole log on read (#7772); the producer kind follows from the package name and cannot be invented offline — reported only."],
           "dangling-tool-call": ["Dangling tool call", "The next model request will 400 forever, and on 0.1.7 the session may not open at all: both the v3→v4 restore and an ordinary read of a stored v4 log refuse it. The result can only be written while the step is open, so an offline tool reports it and never invents one."],
           "unknown-type": ["Unknown event type", "Reported; no rows deleted, nothing marked ignorable."]
         }
@@ -277,6 +279,7 @@ window.__ModuleLoader__.load({
           "v0-chunk-provenance": ["Onvolledige chunk-herkomst", "Een assistant/message verwijst niet naar één complete geordende chunk-poging; de 0.1.5-migratie weigert dat (#6175). Reparatie verwijst naar de chunk-seqs die al op schijf staan — niets verzonnen."],
           "v0-retired-source-kind": ["Uitgefaseerd brontype", "Een message source.kind is een uitgefaseerd literaal (bv. instruction-hint); de 0.1.5 v2→v3-migratie weigert dat als ongeclassificeerd (#6559). De ledenset komt overeen met de huidige plugin-vorm; reparatie hernoemt alleen de kind."],
           "v0-inbox-inserted-message": ["Ingevoegd bericht mist velden", "Een ingevoegd agent/inbox/spliced-bericht mist id/role; de v0→v1-converter weigert dat (#6559). Reparatie vult een id en de user-rol die de validator zelf voorschrijft; de tekst blijft ongewijzigd."],
+          "v4-literal-plugin-source": ["v4 plugin-bronletterlijk", "Een berichtbron draagt nog de oude {kind:\"plugin\"}-wrapper. Formaat v4 vereist een producer-eigen kind en deze harness weigert het hele logbestand bij het lezen (#7772); het producer-kind volgt uit de pakketnaam en is offline niet te verzinnen — alleen gemeld."],
           "dangling-tool-call": ["Hangende tool-aanroep", "De volgende modelaanvraag blijft 400 geven en op 0.1.7 opent de sessie mogelijk helemaal niet: zowel de v3→v4-restore als een gewone lezing van een opgeslagen v4-log weigert haar. Het resultaat kan alleen tijdens de open stap worden geschreven, dus een offline tool meldt het en verzint niets."],
           "unknown-type": ["Onbekend gebeurtenistype", "Wordt gemeld; er worden geen regels verwijderd en niets wordt als ignorable gemarkeerd."]
         }

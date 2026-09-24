@@ -3,9 +3,14 @@ import assert from "node:assert/strict";
 import {
   fillInsertedMessageFields,
   insertedMessageHits,
+  literalPluginSourceHits,
   renameRetiredSourceKinds,
   retiredSourceKindHits,
 } from "../src/message-shapes.mjs";
+import { decodeSessionBuffer } from "../src/decode.mjs";
+import { encodeSession } from "../src/encode.mjs";
+import { planRepair } from "../src/repair.mjs";
+import { SESSION_FORMAT_VERSION } from "../src/runtime.mjs";
 
 function ev(type, seq, data, extra = {}) {
   return { type, seq, time: 1000 + seq, data, ...extra };
@@ -86,3 +91,98 @@ test("spliced inbox messages gain the id/role the v0 converter requires (#6559)"
   assert.deepEqual(inserted[2], events[1].data.inserted[2]);
   assert.deepEqual(inserted[3], events[1].data.inserted[3]);
 });
+
+const PLUGIN_WRAPPER = { kind: "plugin", plugin: "dsh-mnemon" };
+
+test("the retired plugin source wrapper is reported in every message slot (#7772)", () => {
+  const events = [
+    ev("turn/start", 0, { turn: 1 }),
+    ev("user/message", 1, {
+      id: "u1",
+      role: "user",
+      source: PLUGIN_WRAPPER,
+      content: [{ type: "text", text: "hi" }],
+    }, { surfaceOp: "append" }),
+    ev("assistant/message", 2, {
+      turn: 1,
+      step: 1,
+      message: { id: "a1", role: "assistant", source: PLUGIN_WRAPPER, content: [] },
+    }),
+    ev("tool/result", 3, {
+      turn: 1,
+      step: 1,
+      message: { id: "t1", role: "tool", source: PLUGIN_WRAPPER, content: [] },
+    }),
+    ev("agent/inbox/spliced", 4, {
+      target: "next-turn",
+      start: 1,
+      inserted: [{ id: "i1", role: "user", content: [], source: PLUGIN_WRAPPER }],
+    }),
+    ev("user/message", 5, {
+      id: "u2",
+      role: "user",
+      source: { kind: "plugin:dsh-mnemon" },
+      content: [{ type: "text", text: "ok" }],
+    }, { surfaceOp: "append" }),
+  ];
+  assert.deepEqual(literalPluginSourceHits(events), [
+    { seq: 1, plugin: "dsh-mnemon" },
+    { seq: 2, plugin: "dsh-mnemon" },
+    { seq: 3, plugin: "dsh-mnemon" },
+    { seq: 4, plugin: "dsh-mnemon" },
+  ]);
+});
+
+test("a v4 log carrying the retired wrapper is reported, never rewritten (#7772)", async () => {
+  const events = [
+    ev("turn/start", 0, { turn: 1 }),
+    ev("step/start", 1, { turn: 1, step: 1 }),
+    ev("user/message", 2, {
+      id: "u1",
+      role: "user",
+      source: PLUGIN_WRAPPER,
+      content: [{ type: "text", text: "hi" }],
+    }, { surfaceOp: "append" }),
+    ev("step/end", 3, { turn: 1, step: 1 }),
+    ev("turn/end", 4, { turn: 1, reason: { kind: "completed" } }),
+  ];
+  const v4 = decodeSessionBuffer(await encodeSession({
+    header: { version: 4, id: "session-v4-plugin", createdAt: 1, delegationDepth: 0, isSeeded: false },
+    events,
+    packChunks: false,
+  }));
+  if (SESSION_FORMAT_VERSION < 4) {
+    // A runtime that cannot read v4 refuses the header itself; nothing to report.
+    assert.equal(v4.health, "foreign-version");
+    assert.equal(planRepair(v4).mustWrite, false);
+    return;
+  }
+  const codes = new Set(v4.issues.map((issue) => issue.code));
+  assert.ok(codes.has("v4-literal-plugin-source"));
+  assert.equal(v4.health, "v4-literal-plugin-source");
+  const plan = planRepair(v4);
+  assert.equal(plan.mustWrite, false);
+  assert.equal(plan.refuse, undefined);
+});
+
+test("the same retired wrapper is legal below v4: the v3->v4 stage lifts it (#7772)", async () => {
+  const events = [
+    ev("turn/start", 0, { turn: 1 }),
+    ev("step/start", 1, { turn: 1, step: 1 }),
+    ev("user/message", 2, {
+      id: "u1",
+      role: "user",
+      source: PLUGIN_WRAPPER,
+      content: [{ type: "text", text: "hi" }],
+    }, { surfaceOp: "append" }),
+    ev("step/end", 3, { turn: 1, step: 1 }),
+    ev("turn/end", 4, { turn: 1, reason: { kind: "completed" } }),
+  ];
+  const v0 = decodeSessionBuffer(await encodeSession({
+    header: { version: 0, id: "session-v0-plugin", createdAt: 1, delegationDepth: 0 },
+    events,
+    packChunks: false,
+  }));
+  assert.equal(v0.issues.some((issue) => issue.code === "v4-literal-plugin-source"), false);
+});
+

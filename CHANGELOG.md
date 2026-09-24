@@ -45,6 +45,8 @@ All notable user-facing changes to dsh-session-surgeon. Dates are UTC.
 
 ### Not in scope (still refuse / warn only)
 
+- `v4-literal-plugin-source`: a log already at **v4** whose message source still carries the retired `{kind:"plugin", plugin}` wrapper is refused by the official reader on the ordinary read path (`format v4 message requires a producer-owned source kind` — measured on 0.1.7-rc.1: the same row with `kind:"plugin:dsh-mnemon"` reads cleanly). v4 wants the producer's own kind, which the v3→v4 stage derives from the package name; for an unknown plugin there is no single answer, so inspect reports the rows and repair does not touch them ([#7772](https://github.com/deepseek-ai/deepseek-harness/discussions/7772)). Below v4 the wrapper is legal and the stage lifts it, so the report is gated on this file's own header generation.
+
 - Empty `callId` / empty `tool_calls[].id` / dangling `tool/call`: inspect warns (`empty-tool-call-id` / `dangling-tool-call`), repair does not invent a `tool/result` or callId.
 - Unknown plugin event types: report `unknown-type`, do not stamp `ignorable`.
 - Web Chat `received more than one start Match`: frontend fold, not a disk defect.

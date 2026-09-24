@@ -9,6 +9,7 @@ import { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integr
 import { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 import { flatReplayStateHits } from "./replay-state.mjs";
 import { MIGRATES_V0_ON_LOAD, migrationRefusalIssues } from "./migrate.mjs";
+import { literalPluginSourceHits } from "./message-shapes.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
 export { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 
@@ -29,6 +30,7 @@ const HEALTH_RANK = [
   "v0-chunk-provenance",
   "v0-retired-source-kind",
   "v0-inbox-inserted-message",
+  "v4-literal-plugin-source",
   "seq-gap-tail",
   "message-missing-id",
   "lone-surrogate",
@@ -282,6 +284,25 @@ export function decodeSessionBuffer(buf) {
         seqs,
         where: emptyIds.map((d) => d.where),
       });
+    }
+  }
+  const fileVersion = headerClass.header?.version;
+  if (typeof fileVersion === "number" && fileVersion >= 4) {
+    const literalPlugin = literalPluginSourceHits(finished.events);
+    if (literalPlugin.length > 0) {
+      health = worse(health, "v4-literal-plugin-source");
+      if (!issues.some((i) => i.code === "v4-literal-plugin-source")) {
+        const seqs = literalPlugin.map((hit) => hit.seq);
+        issues.push({
+          code: "v4-literal-plugin-source",
+          message:
+            "message source is still the retired {kind:\"plugin\", plugin} wrapper at seq " +
+            seqs.join(", ") +
+            " — format v4 admission requires a producer-owned kind, so this harness refuses the whole log on read (#7772); the producer kind follows from the package name and cannot be invented offline, so repair only reports",
+          seqs,
+          plugins: literalPlugin.map((hit) => hit.plugin),
+        });
+      }
     }
   }
   const dangling = danglingToolCalls(finished.events);

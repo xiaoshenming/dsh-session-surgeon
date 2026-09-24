@@ -12,6 +12,11 @@
  * keeps the same members, and the spliced message role the validator passes
  * in is literally "user". Anything outside the released member set is left
  * alone — repair reports, it does not guess.
+ *
+ * A third shape is detection-only: a log already at v4 may still carry the
+ * retired `{kind:"plugin", plugin}` source wrapper, which v4 admission refuses
+ * while the log is read (#7772). Its successor kind is derived from the package
+ * name, so there is no single answer to write back.
  */
 import { randomUUID } from "node:crypto";
 
@@ -92,6 +97,29 @@ export function renameRetiredSourceKinds(events) {
     ),
   );
   return { value, hits };
+}
+
+/**
+ * C: format v4 admission refuses the literal `plugin` source kind
+ * (`format v4 message requires a producer-owned source kind`), and the read
+ * path checks it, so a log already at v4 that still carries the retired
+ * `{kind:"plugin", plugin}` wrapper cannot be opened at all (#7772). The
+ * producer kind is derived from the package name — a rename table plus a
+ * released set plus a `plugin:<pkg>` fallback — which an offline tool cannot
+ * reconstruct for an unknown plugin: report only, never guess.
+ */
+export function literalPluginSourceHits(events) {
+  const hits = [];
+  if (!Array.isArray(events)) return hits;
+  for (const event of events) {
+    rewriteMessageSources(event, (source) => {
+      if (source.kind === "plugin") {
+        hits.push({ seq: event.seq, plugin: typeof source.plugin === "string" ? source.plugin : null });
+      }
+      return source;
+    });
+  }
+  return hits;
 }
 
 /** B: agent/inbox/spliced inserted messages lack the id/role the v0 converter requires (#6559). */
