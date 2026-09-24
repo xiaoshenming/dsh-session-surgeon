@@ -133,5 +133,5 @@ git push SSL EOF 时：Contents API PUT 到 `xiaoshenming/dsh-session-surgeon`�
 - GitHub token：本机走 `gh`（keyring，账号 xiaoshenming）；`~/.git-credentials` 不存在时直接 `gh api`
 - 推送代理：`px` → `127.0.0.1:7897`
 - 用户 checkout 常是 `link:`；overlay 文案要重启 web 才更新
-- 2026-09 版本线：npm `latest`=0.1.5-rc.3、`next`=0.1.7-rc.1（格式 v4）、`alpha`=0.1.7-alpha.2；devDependency 锁 0.1.7-rc.1
+- 2026-09 版本线：npm `latest`=0.1.5-rc.3、`next`=0.1.7-rc.1（格式 v4）、`alpha`=0.1.7-alpha.2；devDependency 锁 0.1.7-rc.1。rc.3 与 rc.1 上 v0→v1/v2→v3 的闸门都在（descriptor / inserted / SOURCE_KINDS 无 `instruction-hint`）
 - 格式代际：header v0–v4 都能 inspect/repair；`session.vN.jsonl.zstd` 由官方迁移，surgeon 不改代际
