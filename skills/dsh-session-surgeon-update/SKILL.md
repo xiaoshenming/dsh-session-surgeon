@@ -179,7 +179,7 @@ CI 红必须当轮修掉再推一次（测试分叉是常见原因，见第 3 �
 - Alpha → rc.2 `model/selection`：结构校验通过后只加 `ignorable: true`；保留 type/data/seq/time
 - compact：seq 不连续 / 官方拒读则 refuse
 - #6559 家族（0.1.7-rc.1 与 0.1.5-rc.3 都在）：退役来源字面量 `instruction-hint` → 同名后继 `plugin`（键集相同，v2→v3 `SOURCE_KINDS` 不认）；`agent/inbox/spliced` 的 `inserted[]` 消息缺 `id`/`role`（v0→v1 `messageValue` 拒读）→ 补 id 与校验器实参写死的 `user`。成员超出 released 形状的一律不碰
-- 悬空 `tool/call` 只在 **restore** 路径被拒（`restoreReleasedV2Artifact` → `step/end leaves unresolved tool call`，调用方是 persistence worker 与 v2→v3 迁移）；v0→v1 migration stage 与普通读盘都接受 → 所以这类能活到请求侧 400。**事后补 `tool/result` 会落在已闭合的 step 外**，离线只能 `dangling-tool-call` 报警，不能补
+- 悬空 `tool/call` 只在 **restore** 路径被拒（`restoreReleasedV2Artifact` / `restoreReleasedV4Artifact` → `step/end leaves unresolved tool call`；0.1.7 发布 v3→v4 迁移走后者，调用方是 persistence worker）；v0→v1 与 v3→v4 的 migration stage、以及普通读盘都接受 → 同一损坏可能表现为请求侧 400，也可能表现为打不开。**事后补 `tool/result` 会落在已闭合的 step 外**，离线只能 `dangling-tool-call` 报警，不能补。复现脚本 `fixtures/probes/run.mjs`（有人要证据时直接给这个链接，跑通会打印四行 stage/restore 对照）
 - `session/title-llm-request.messageSeqs` 指向已消费 `assistant/chunk`（v1→v2 `mapOne` 拒）：改成哪个 seq 没有唯一答案 → 只报告不修
 - 代际：header v0–v4 都能 inspect/repair；比本机新的代际走 `foreign-version` → refuse 文案必须是「upgrade the harness」（`planRepair` 里这条检查在 `!header` 之前）
 - `team/*` 在 known-types
