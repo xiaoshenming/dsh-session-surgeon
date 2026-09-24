@@ -65,6 +65,13 @@ test("v3/v4 headers round-trip and repair stays a no-op", async () => {
     ];
     const buf = await encodeSession({ header, events, packChunks: false });
     const decoded = decodeSessionBuffer(buf);
+    if (SESSION_FORMAT_VERSION < version) {
+      // Standalone fallback (no installed runtime): a newer generation is
+      // reported as foreign, never guessed at.
+      assert.equal(decoded.headerClass.code, "foreign-version");
+      assert.equal(planRepair(decoded).refuse, "foreign format version — upgrade the harness");
+      continue;
+    }
     assert.equal(decoded.header.version, version);
     assert.equal(decoded.header.isSeeded, false);
     assert.equal(decoded.health, "ok");
@@ -96,6 +103,11 @@ test("a v4 seq gap is repaired without changing the header generation", async ()
   const buf = await encodeSession({ header, events, packChunks: false });
   const decoded = decodeSessionBuffer(buf);
   const plan = planRepair(decoded);
+  if (SESSION_FORMAT_VERSION < 4) {
+    assert.equal(decoded.headerClass.code, "foreign-version");
+    assert.equal(plan.refuse, "foreign format version — upgrade the harness");
+    return;
+  }
   assert.ok(plan.actions.some((a) => a.code === "seq-gap-tail"));
   assert.equal(plan.header.version, 4);
   assert.equal(plan.refuse, undefined);
