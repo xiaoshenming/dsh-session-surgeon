@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "description": "Repair DeepSeek Harness sessions that refuse to load (seq gap, torn zstd frames, lone surrogates).",
   "type": "module",
+  "packageManager": "pnpm@12.4.2",
   "bin": {
     "dsh-session-surgeon": "./bin/dsh-session-surgeon.mjs"
   },
@@ -60,5 +61,9 @@
     "inspect": "node bin/dsh-session-surgeon.mjs inspect",
     "build-fixtures": "node fixtures/synthetic/build.mjs",
     "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-tools": "0.1.7-rc.1"
   }
 }

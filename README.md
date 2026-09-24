@@ -42,7 +42,16 @@ Restart `dsh web`. Then:
 - Session ⋯ menu: **复制会话 ID** (the everyday action) / inspect / dry-run repair
 - Sidebar **会话医生 / Session surgeon**: browse conversations, copy id, dry-run repair, apply repair, compact preview, export JSONL
 
-Developers working in a checkout can still use `dsh plugin --profile web add link:"$(pwd)"`.
+For local development, use the pinned dsh version and pnpm lockfile (Node.js 24):
+
+```bash
+pnpm install --frozen-lockfile
+export DSH_HOME="$HOME/.dsh-surgeon-dev"
+./node_modules/.bin/dsh plugin --profile web add "link:$(pwd)"
+./node_modules/.bin/dsh web
+```
+
+`DSH_HOME` keeps development sessions separate. Avoid reinstalling this checkout with npm: duplicate physical copies of `@deepseek-ai/dsh-tools` can make tool calls fail with `reading 'prepare'`.
 
 In an agent chat that has this checkout (or the installed plugin skills), **更新插件** is enough: scan official Discussions, absorb in-scope repair feedback, changelog, reply, push `main` via `px` (`127.0.0.1:7897`). See [skills/dsh-session-surgeon-update/SKILL.md](./skills/dsh-session-surgeon-update/SKILL.md).
 

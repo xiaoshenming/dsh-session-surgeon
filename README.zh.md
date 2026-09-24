@@ -36,7 +36,16 @@ dsh plugin --profile web add "github:xiaoshenming/dsh-session-surgeon#main"
 - 会话 ⋯ 菜单：**复制会话 ID**（日常就用这个）/ 检查 / 预览修复
 - 左侧「会话医生」：看对话、复制 ID、预览修复、应用修复、导出
 
-本地改代码时仍可用 `dsh plugin --profile web add link:"$(pwd)"`。
+本地开发请使用项目锁定的 dsh 版本和 pnpm 锁文件（Node.js 24）：
+
+```bash
+pnpm install --frozen-lockfile
+export DSH_HOME="$HOME/.dsh-surgeon-dev"
+./node_modules/.bin/dsh plugin --profile web add "link:$(pwd)"
+./node_modules/.bin/dsh web
+```
+
+`DSH_HOME` 将开发会话与日常会话隔离。不要用 npm 重装此开发环境：当前 DSH 的工具调度器依赖单一 `@deepseek-ai/dsh-tools` 模块实例，npm 的重复实体副本可能让工具调用报 `reading 'prepare'`。
 
 在能加载本仓库技能的对话里，说一句 **更新插件** 即可：扫官方 Discussions、吸收对口反馈、改代码、写 CHANGELOG、回复、用 px 推 `main`。技能正文：[skills/dsh-session-surgeon-update/SKILL.md](./skills/dsh-session-surgeon-update/SKILL.md)。
 
