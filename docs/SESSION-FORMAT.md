@@ -128,6 +128,8 @@ week 0 CLI 用 magic `28 B5 2F FD` 切帧。这和官方解码器等价到「独
 3. 上述 issue 产生之后，如果同一行或后续行里出现 `turn/end` → **立刻 throw**。意思是：最后一个已提交 turn 之前的缺陷不可恢复
 4. issue 之后如果再也没有 `turn/end`，官方只保留 committed prefix，尾巴当 torn 处理
 
+另外，**当前代际（v4）**的 `SessionLogScanner.finish()` 在 `restore.finish()` 之后会跑一次 `assertReleasedV4Relationships`（0.1.7 起）。所以闭合过的 step 里留下未应答 `tool/call` 的日志，**读一份已经存好的 v4 文件本身就会拒收**（`stored log is corrupt: … leaves unresolved tool call …`）；更老的代际在读盘时先走迁移，拒收发生在 publish/restore 那一步。两条路径的内层错误串完全一样，区别只在外层包装。
+
 所以「表面 seq 跳号」有两种完全不同的情况：
 
 - packed 行：健康

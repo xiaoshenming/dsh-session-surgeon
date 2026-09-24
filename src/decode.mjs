@@ -293,7 +293,7 @@ export function decodeSessionBuffer(buf) {
         code: "dangling-tool-call",
         message:
           "tool/call without tool/result: " + seqs.join(", ") +
-          " — next model request will 400; on 0.1.7 a v3→v4 restore refuses the session for the same reason, and the result cannot be added offline (the step is closed) — probe: fixtures/probes/dangling-tool-call.json",
+          " — next model request will 400; on 0.1.7 the v3→v4 restore and the ordinary read of a stored v4 log both refuse the session for the same reason, and the result cannot be added offline (the step is closed) — probe: fixtures/probes/dangling-tool-call.json",
         seqs,
         callIds: dangling.map((d) => d.callId),
       });

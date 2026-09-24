@@ -179,7 +179,8 @@ CI 红必须当轮修掉再推一次（测试分叉是常见原因，见第 3 �
 - Alpha → rc.2 `model/selection`：结构校验通过后只加 `ignorable: true`；保留 type/data/seq/time
 - compact：seq 不连续 / 官方拒读则 refuse
 - #6559 家族（0.1.7-rc.1 与 0.1.5-rc.3 都在）：退役来源字面量 `instruction-hint` → 同名后继 `plugin`（键集相同，v2→v3 `SOURCE_KINDS` 不认）；`agent/inbox/spliced` 的 `inserted[]` 消息缺 `id`/`role`（v0→v1 `messageValue` 拒读）→ 补 id 与校验器实参写死的 `user`。成员超出 released 形状的一律不碰
-- 悬空 `tool/call` 只在 **restore** 路径被拒（`restoreReleasedV2Artifact` / `restoreReleasedV4Artifact` → `step/end leaves unresolved tool call`；0.1.7 发布 v3→v4 迁移走后者，调用方是 persistence worker）；v0→v1 与 v3→v4 的 migration stage、以及普通读盘都接受 → 同一损坏可能表现为请求侧 400，也可能表现为打不开。**事后补 `tool/result` 会落在已闭合的 step 外**，离线只能 `dangling-tool-call` 报警，不能补。复现脚本 `fixtures/probes/run.mjs`（有人要证据时直接给这个链接，跑通会打印四行 stage/restore 对照）
+- 悬空 `tool/call` 共**五条路径**（`fixtures/probes/run.mjs` 五行，0.1.7-rc.1 与 rc.2 实测一致）：v0→v1 与 v3→v4 的 **migration stage 接受**；`restoreReleasedV2Artifact` / `restoreReleasedV4Artifact` **拒**（`step/end leaves unresolved tool call`）；**读一份已经是当前代际（v4）的已存日志也拒**（`readStoredLog` → `SessionLogScanner.finish()` → `assertReleasedV4Relationships`，外层包成 `SessionPersistenceCorruptionError: stored log is corrupt`）。更老的代际读盘先走迁移，所以拒收发生在 publish/restore；两条路径内层错误串一样，只有外层包装能区分入口。**事后补 `tool/result` 会落在已闭合的 step 外**，离线只能 `dangling-tool-call` 报警，不能补。有人要证据时给 `fixtures/probes/run.mjs` 的链接（跑通打印五行，漂移即 exit 1）
+- 官方 `restore.decodeRow()` **原地改写传入的行对象**（#6559 有人复现）→ 任何"修前判一次、修后判一次"的验证必须每遍重新 `JSON.parse`，复用同一批对象会得到静默错误的结论。surgeon 自身不调官方 decoder（只在自己 src 里实现），风险在探针与测试侧：`fixtures/probes/run.mjs` 已改成每个入口点各自 `JSON.parse` 一份
 - `session/title-llm-request.messageSeqs` 指向已消费 `assistant/chunk`（v1→v2 `mapOne` 拒）：改成哪个 seq 没有唯一答案 → 只报告不修
 - 代际：header v0–v4 都能 inspect/repair；比本机新的代际走 `foreign-version` → refuse 文案必须是「upgrade the harness」（`planRepair` 里这条检查在 `!header` 之前）
 - `team/*` 在 known-types
@@ -191,7 +192,7 @@ CI 红必须当轮修掉再推一次（测试分叉是常见原因，见第 3 �
 - git 作者：全局 config 是 `xiaoshenming <1181584752@qq.com>`，仓库历史是 `Small明 <11856687+BFSYRGZbfsyrgz@user.noreply.gitee.com>` → 提交时用 `-c` 传仓库作者
 - CI：GitHub Actions 只跑 `node fixtures/synthetic/build.mjs` + `node --test test/*.test.mjs` + secrets 检查，**不装依赖**（所以本机有 node_modules 时测试行为和 CI 可能分叉）
 - 用户 checkout 常是 `link:`；overlay 文案要重启 web 才更新
-- 2026-09 版本线：npm `latest`=0.1.5-rc.3、`next`=0.1.7-rc.1（格式 v4）、`alpha`=0.1.7-alpha.2；devDependency 锁 0.1.7-rc.1。rc.3 与 rc.1 上 v0→v1/v2→v3 的闸门都在（descriptor / inserted / SOURCE_KINDS 无 `instruction-hint`）
+- 2026-09 版本线：npm `latest`=0.1.5-rc.3、`next`=**0.1.7-rc.2**（格式 v4）、`alpha`=0.1.7-alpha.2；devDependency 锁 0.1.7-rc.1（rc.2 用 `npm install @deepseek-ai/dsh@0.1.7-rc.2` 到临时前缀实测）。rc.1 / rc.2 上 v0→v1/v2→v3 的闸门都在（descriptor / inserted / SOURCE_KINDS 无 `instruction-hint`），五行的悬空 call 表两版一致；行号以 tarball 为准：`dsh-session-format-v0-to-v1` 的 `subagentDescriptorValue` 声明 `:1289`、`literalValue(data["version"],[3])` 在 `:1290`、`data["version"] !== 3` 在 `:1584`、抛在 `:1586`（同一版本已安装副本与 tarball 字节一致）
 - 格式代际：header v0–v4 都能 inspect/repair；`session.vN.jsonl.zstd` 由官方迁移，surgeon 不改代际
 - 会话根解析：`$DSH_SESSION_ROOT` → `$DSH_HOME/sessions` → `~/.dsh/sessions`；本机两个 home（`~/.dsh-surgeon-dev` 有会话且装了插件，`~/.dsh` 空且没装）
 - 面板「会话根」下拉：`GET /api/session-surgeon/roots` 按 home 形态自动发现（`profiles`/`.anonymous-user-id`/`.credentials.yaml`/`settings.yaml*` 任一 + `sessions/`），带会话数，支持手输任意路径（`~` 会展开）；所有单会话请求都带 `root`，切根后 inspect/repair/export 才落在正确的库上
