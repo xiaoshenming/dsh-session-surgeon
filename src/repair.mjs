@@ -75,11 +75,14 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
   const header = decoded.header;
   const headerCode = decoded.headerClass?.code ?? (header ? "header-ok" : "header-frame-corrupt");
 
-  if (!header || headerCode === "header-frame-corrupt" || headerCode === "header-parse-error") {
-    return { actions, events: [], header, mustWrite: false, refuse: "header cannot be decoded" };
-  }
+  // A newer generation than the installed runtime has no decoded header, so
+  // this has to be checked before the "cannot be decoded" branch: the user
+  // needs "upgrade the harness", not a corrupt-header message.
   if (headerCode === "foreign-version") {
     return { actions, events: [], header, mustWrite: false, refuse: "foreign format version — upgrade the harness" };
+  }
+  if (!header || headerCode === "header-frame-corrupt" || headerCode === "header-parse-error") {
+    return { actions, events: [], header, mustWrite: false, refuse: "header cannot be decoded" };
   }
   if (headerCode === "retired-fields") {
     return { actions, events: [], header, mustWrite: false, refuse: "header carries retired policy fields" };

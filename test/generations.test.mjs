@@ -81,6 +81,16 @@ test("v3/v4 headers round-trip and repair stays a no-op", async () => {
   }
 });
 
+test("a generation newer than the installed runtime asks for an upgrade, not a repair", () => {
+  const plan = planRepair({
+    header: null,
+    headerClass: { ok: false, code: "foreign-version", error: "format v99 is newer than this harness" },
+    events: [],
+  });
+  assert.equal(plan.mustWrite, false);
+  assert.equal(plan.refuse, "foreign format version — upgrade the harness");
+});
+
 test("the canonical generation is the newest one the installed runtime knows", () => {
   const gens = [
     { version: 0, filename: "session.jsonl.zstd" },
