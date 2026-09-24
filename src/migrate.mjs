@@ -7,12 +7,21 @@
  * left untouched by the official migration, which is why repair has to fix
  * the v0 file on disk instead.
  *
+ * #6559 shapes (retired source kind, spliced inbox message id/role) live in
+ * message-shapes.mjs; this module is the single aggregator for repair.
+ *
  * Detection always runs. Rewriting is gated on MIGRATES_V0_ON_LOAD by the
  * caller: a v0-only harness loads these files as-is. Every fix below either
  * drops redundant display metadata or cites seq numbers that already exist
  * on disk — nothing is invented, no event is deleted, seq layout is kept.
  */
 import { expandCompressedSeqRanges } from "./provenance.mjs";
+import {
+  fillInsertedMessageFields,
+  insertedMessageHits,
+  renameRetiredSourceKinds,
+  retiredSourceKindHits,
+} from "./message-shapes.mjs";
 import { SESSION_FORMAT_VERSION } from "./runtime.mjs";
 
 /**
@@ -165,6 +174,10 @@ const MESSAGES = {
     "plugin message source pairs summary/sections with the wrong form — the converter refuses (#6194); repair adds the matching form or drops the display-only member",
   "v0-chunk-provenance":
     "assistant/message chunk provenance is not one complete ordered attempt — the 0.1.5 migration refuses (#6175); repair cites the on-disk chunk run",
+  "v0-retired-source-kind":
+    "message source uses a retired kind literal whose successor keeps the same members — the 0.1.5 v2→v3 migration refuses it as unclassified (#6559); repair renames the kind only",
+  "v0-inbox-inserted-message":
+    "agent/inbox/spliced inserted message lacks the id/role the v0→v1 converter requires — the session is refused (#6559); repair fills an id and the validator's own user role",
 };
 
 /** One aggregated issue per refusal code, shaped like other decode issues. */
@@ -174,6 +187,8 @@ export function migrationRefusalIssues(events) {
     ["v0-descriptor-version", descriptorVersionHits(events)],
     ["v0-plugin-source-form", pluginSourceFormHits(events)],
     ["v0-chunk-provenance", chunkProvenanceHits(events)],
+    ["v0-retired-source-kind", retiredSourceKindHits(events)],
+    ["v0-inbox-inserted-message", insertedMessageHits(events)],
   ];
   const issues = [];
   for (const [code, hits] of groups) {
@@ -244,6 +259,34 @@ export function applyMigrationFixes(events, { expandRanges = false, converters =
   }
 
   if (!converters) return { value, actions };
+
+  // Renames run before the form alignment below so a renamed plugin source is
+  // still checked for a matching form.
+  const retired = renameRetiredSourceKinds(value);
+  if (retired.hits.length > 0) {
+    value = retired.value;
+    actions.push({
+      code: "v0-retired-source-kind",
+      detail:
+        "renamed retired source kind on " +
+        retired.hits.length +
+        " message source(s): " +
+        [...new Set(retired.hits.map((hit) => hit.kind))].join(", ") +
+        " (#6559)",
+    });
+  }
+
+  const inserted = fillInsertedMessageFields(value);
+  if (inserted.hits.length > 0) {
+    value = inserted.value;
+    actions.push({
+      code: "v0-inbox-inserted-message",
+      detail:
+        "filled id/role on " +
+        inserted.hits.length +
+        " agent/inbox/spliced inserted message(s) (#6559)",
+    });
+  }
 
   const presetHits = presetExtraMemberHits(value);
   if (presetHits.length > 0) {

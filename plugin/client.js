@@ -85,6 +85,8 @@ window.__ModuleLoader__.load({
           "v0-descriptor-version": ["子代理描述版本", "subagent/descriptor 的 version 不是 3，0.1.5 迁移拒读（#6151）。两种版本字段相同，修复改成 3。"],
           "v0-plugin-source-form": ["插件消息来源形态", "插件消息来源的 summary/sections 与 form 不匹配，0.1.5 迁移拒读（#6194）。修复只补 form 或去掉展示用的 summary，不改正文。"],
           "v0-chunk-provenance": ["分块溯源不完整", "assistant/message 引用的分块不是同一轮的完整有序一段，0.1.5 迁移拒读（#6175）。修复改成引用磁盘上已有的分块序号，不发明。"],
+          "v0-retired-source-kind": ["退役的来源类型", "消息 source.kind 是已退役的字面量（如 instruction-hint），0.1.5 的 v2→v3 迁移按未分类拒读（#6559）。键集与新的 plugin 形态相同，修复只改名。"],
+          "v0-inbox-inserted-message": ["插入消息缺字段", "agent/inbox/spliced 插入的消息缺 id/role，v0→v1 转换器拒读（#6559）。修复补 id 与校验器自己写死的 user 角色，正文不动。"],
           "dangling-tool-call": ["悬空工具调用", "文件能打开，但下次模型请求会永久 400。只定位，不会编假 tool/result。"],
           "unknown-type": ["未知事件类型", "会报告，不会删行，也不会盖 ignorable。"]
         }
@@ -166,6 +168,8 @@ window.__ModuleLoader__.load({
           "v0-descriptor-version": ["Subagent descriptor version", "subagent/descriptor data.version is not 3, which the 0.1.5 migration refuses (#6151). Both versions share the same member shape; repair sets 3."],
           "v0-plugin-source-form": ["Plugin source form", "A plugin message source pairs summary/sections with the wrong form; the 0.1.5 migration refuses (#6194). Repair adds the matching form or drops the display-only member — body text is untouched."],
           "v0-chunk-provenance": ["Incomplete chunk provenance", "An assistant/message cites chunks that are not one complete ordered attempt; the 0.1.5 migration refuses (#6175). Repair cites the chunk seqs already on disk — nothing invented."],
+          "v0-retired-source-kind": ["Retired source kind", "A message source.kind is a retired literal (e.g. instruction-hint); the 0.1.5 v2→v3 migration refuses it as unclassified (#6559). The member set matches the current plugin shape, so repair renames the kind only."],
+          "v0-inbox-inserted-message": ["Inserted message fields", "An agent/inbox/spliced inserted message lacks id/role, which the v0→v1 converter refuses (#6559). Repair fills an id and the validator's own user role; body text is untouched."],
           "dangling-tool-call": ["Dangling tool call", "The file opens, but the next model request will 400 forever. Only located, no fake tool/result is invented."],
           "unknown-type": ["Unknown event type", "Reported; no rows deleted, nothing marked ignorable."]
         }
@@ -247,6 +251,8 @@ window.__ModuleLoader__.load({
           "v0-descriptor-version": ["Subagent-descriptorversie", "subagent/descriptor data.version is geen 3; de 0.1.5-migratie weigert dat (#6151). Beide versies hebben dezelfde velden; reparatie zet 3."],
           "v0-plugin-source-form": ["Plug-in-bronvorm", "Een plug-in-berichtbron combineert summary/sections met de verkeerde form; de 0.1.5-migratie weigert dat (#6194). Reparatie vult de juiste form aan of verwijdert het louter decoratieve lid — de tekst blijft onaangetast."],
           "v0-chunk-provenance": ["Onvolledige chunk-herkomst", "Een assistant/message verwijst niet naar één complete geordende chunk-poging; de 0.1.5-migratie weigert dat (#6175). Reparatie verwijst naar de chunk-seqs die al op schijf staan — niets verzonnen."],
+          "v0-retired-source-kind": ["Uitgefaseerd brontype", "Een message source.kind is een uitgefaseerd literaal (bv. instruction-hint); de 0.1.5 v2→v3-migratie weigert dat als ongeclassificeerd (#6559). De ledenset komt overeen met de huidige plugin-vorm; reparatie hernoemt alleen de kind."],
+          "v0-inbox-inserted-message": ["Ingevoegd bericht mist velden", "Een ingevoegd agent/inbox/spliced-bericht mist id/role; de v0→v1-converter weigert dat (#6559). Reparatie vult een id en de user-rol die de validator zelf voorschrijft; de tekst blijft ongewijzigd."],
           "dangling-tool-call": ["Hangende tool-aanroep", "Het bestand opent, maar de volgende modelaanvraag blijft 400 geven. Wordt alleen gelokaliseerd, er wordt geen nep-tool/resultaat verzonnen."],
           "unknown-type": ["Onbekend gebeurtenistype", "Wordt gemeld; er worden geen regels verwijderd en niets wordt als ignorable gemarkeerd."]
         }

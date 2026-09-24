@@ -49,7 +49,7 @@ description: |
 必看：
 
 1. participating + unread notifications（`deepseek-ai/deepseek-harness` 与本仓库）
-2. 我们回过的帖的新评论 / 回复：至少 #1586 #1497 #5151 #5160 #5142 #5103 #4178 #1452 #4819 #4767 #4127
+2. 我们回过的帖的新评论 / 回复：至少 #1586 #1497 #5151 #5160 #5142 #5103 #4178 #1452 #4819 #4767 #4127 #6559
 3. 官方 Discussions 按更新时间，关键词：`seq gap` `corrupt session` `session.jsonl` `message.id` `tool/call` `无法加载` `历史加载失败` `拒读` `torn` `zstd` `surgeon` `会话医生` `callId` `sourceEventSeqs` `start Match`
 4. 本仓库 Issues / 评论
 
@@ -125,6 +125,7 @@ git push SSL EOF 时：Contents API PUT 到 `xiaoshenming/dsh-session-surgeon`�
 - #5694/#5909 legacy-replay-state：扁平 `{kind,...}` replayState 包成 `{response,blocks}`；仅 format ≥ 1 时改写
 - Alpha → rc.2 `model/selection`：结构校验通过后只加 `ignorable: true`；保留 type/data/seq/time
 - compact：seq 不连续 / 官方拒读则 refuse
+- #6559 家族（0.1.7-rc.1 仍在）：退役来源字面量 `instruction-hint` → 同名后继 `plugin`（键集相同，v2→v3 `SOURCE_KINDS` 不认）；`agent/inbox/spliced` 的 `inserted[]` 消息缺 `id`/`role`（v0→v1 `messageValue` 拒读）→ 补 id 与校验器实参写死的 `user`。成员超出 released 形状的一律不碰
 - `team/*` 在 known-types
 
 ## 本机事实

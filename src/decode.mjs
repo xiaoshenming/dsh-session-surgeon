@@ -27,6 +27,8 @@ const HEALTH_RANK = [
   "v0-descriptor-version",
   "v0-plugin-source-form",
   "v0-chunk-provenance",
+  "v0-retired-source-kind",
+  "v0-inbox-inserted-message",
   "seq-gap-tail",
   "message-missing-id",
   "lone-surrogate",

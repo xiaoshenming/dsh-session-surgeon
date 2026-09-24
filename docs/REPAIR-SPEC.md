@@ -35,6 +35,8 @@
 | `v0-descriptor-version` | `subagent/descriptor` data.version ≠ 3 | **0.1.5** 迁移拒读 v0 工件（#6151） | 仅当本机 format ≥ 1 时把 version 改成 3（成员形状相同） |
 | `v0-plugin-source-form` | 插件消息来源 `summary`/`sections` 与 `form` 不匹配 | **0.1.5** 迁移拒读（#6194） | 仅当本机 format ≥ 1 时**对齐 `form`**（summary→notice，sections→snapshot），保住成员；仅 summary+sections 并存冲突才删其一；正文不动 |
 | `v0-chunk-provenance` | `assistant/message` 分块引用不是同一 (turn,step) 自上次尝试边界（`turn/end`/`step/end`/`llm/retry`/`llm/retry-started`，同官方 `closesAttempt`）以来的完整有序一段 | **0.1.5** 迁移拒读（#6175；[#3](https://github.com/xiaoshenming/dsh-session-surgeon/issues/3) 漏判重试边界） | 仅当本机 format ≥ 1 时改引用磁盘上已有的分块 seq；无分块时改为空引用；`surfaceOp` 为 replace 的消息（/rewind 撤回标记）**绝不动**——其引用是 `applySurface` 要求的 shadowed 节点 |
+| `v0-retired-source-kind` | 消息 `source.kind` 是已退役字面量（如 `instruction-hint`），不在 v2→v3 `SOURCE_KINDS` 里 | **0.1.5 / 0.1.6 / 0.1.7-rc.1** 的 v2→v3 `assertSource` 按未分类拒读（#6559） | 仅当本机 format ≥ 1 时把 kind 改成同名后继（`plugin`），键集必须与 released plugin 来源完全一致；多出未知成员的一律不碰（只报告） |
+| `v0-inbox-inserted-message` | `agent/inbox/spliced` 的 `inserted[]` 消息缺 `id` / `role` | v0→v1 `messageValue` 拒读整条会话（#6559） | 仅当本机 format ≥ 1 时补 `id`（与 `message-missing-id` 同一做法）与校验器实参写死的 `role: "user"`；正文/来源不动；content、source 缺失或带未知成员的不碰 |
 | `forward-event-shim` | Alpha `model/selection` 降级后 rc.2 不认识 | `SessionFormatUnsupportedError` | 仅在官方结构校验通过时加 `ignorable: true`；保留 type/data/seq/time |
 | `seq-overlap-replay` | 同一 seq 出现两次（崩溃重放） | 表现为 gap/overlap | 保留先写的，丢掉重放尾 |
 | `lone-surrogate` | 用户文本含孤立 UTF-16 代理 | 可能永久 HTTP 400（#436） | 剥掉或替换 U+FFFD |

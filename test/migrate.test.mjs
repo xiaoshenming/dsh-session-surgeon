@@ -235,3 +235,38 @@ test("migrationRefusalIssues aggregates one issue per code", () => {
   const issues = migrationRefusalIssues(BASE);
   assert.deepEqual(issues.map((i) => i.code), ["v0-preset-extra-member", "v0-plugin-source-form"]);
 });
+test("decode and planRepair handle both #6559 shapes end to end", async () => {
+  const events = [
+    ev("turn/start", 0, { turn: 1 }),
+    ev("agent/inbox/spliced", 1, {
+      target: "next-turn",
+      start: 1,
+      inserted: [{ content: [{ type: "text", text: "hi" }], source: { kind: "user" } }],
+    }),
+    ev("user/message", 2, {
+      id: "u1",
+      role: "user",
+      source: { kind: "instruction-hint", plugin: "anchored-tool-bootstrap" },
+      content: [{ type: "text", text: "go" }],
+    }, { surfaceOp: "append" }),
+    ev("turn/end", 3, { turn: 1, reason: { kind: "completed" } }),
+  ];
+  const buf = await encodeSession({ header, events, packChunks: false });
+  const decoded = decodeSessionBuffer(buf);
+  const codes = new Set(decoded.issues.map((i) => i.code));
+  assert.ok(codes.has("v0-retired-source-kind"));
+  assert.ok(codes.has("v0-inbox-inserted-message"));
+  const plan = planRepair(decoded);
+  if (!MIGRATES_V0_ON_LOAD) {
+    assert.equal(decoded.health, "ok");
+    assert.equal(plan.mustWrite, false);
+    return;
+  }
+  assert.equal(decoded.health, "v0-retired-source-kind");
+  assert.equal(plan.refuse, undefined);
+  const actions = plan.actions.map((a) => a.code);
+  assert.ok(actions.includes("v0-retired-source-kind"));
+  assert.ok(actions.includes("v0-inbox-inserted-message"));
+  assert.equal(plan.events[2].data.source.kind, "plugin");
+  assert.equal(plan.events[1].data.inserted[0].role, "user");
+});
