@@ -193,3 +193,5 @@ CI 红必须当轮修掉再推一次（测试分叉是常见原因，见第 3 �
 - 用户 checkout 常是 `link:`；overlay 文案要重启 web 才更新
 - 2026-09 版本线：npm `latest`=0.1.5-rc.3、`next`=0.1.7-rc.1（格式 v4）、`alpha`=0.1.7-alpha.2；devDependency 锁 0.1.7-rc.1。rc.3 与 rc.1 上 v0→v1/v2→v3 的闸门都在（descriptor / inserted / SOURCE_KINDS 无 `instruction-hint`）
 - 格式代际：header v0–v4 都能 inspect/repair；`session.vN.jsonl.zstd` 由官方迁移，surgeon 不改代际
+- 会话根解析：`$DSH_SESSION_ROOT` → `$DSH_HOME/sessions` → `~/.dsh/sessions`；本机两个 home（`~/.dsh-surgeon-dev` 有会话且装了插件，`~/.dsh` 空且没装），面板有「会话根」下拉（`GET /api/session-surgeon/roots`）可切
+- 「面板一条会话都没有」的第一诊断：`curl -s http://127.0.0.1:<port>/api/session-surgeon/scan`，看返回的 `root`/`error`（host 的 `DSH_HOME` 决定默认根）；`/roots` 列全部候选
