@@ -161,3 +161,4 @@
 - header 缺 `delegationDepth` / 带退役字段（形状已经不是 v0）
 - 用插件去改正在跑的 live writer（官方：一个 session 同时只能有一个 writer）
 - 空 `callId` / 空 `tool_calls[].id`：不编假 id。根因是引擎出栈过滤（#5182）；inspect 只标位置
+- 悬空 `tool/call`（step/turn 已闭合、`tool/result` 从未落盘）：`tool/result` 只能写在还开着的 step 里，事后追加会与日志自相矛盾；`fixtures/probes/dangling-tool-call.json` 实测了这条分叉 —— v0→v1 与 v3→v4 的 **migration stage 接受**，`restoreReleasedV2Artifact` / `restoreReleasedV4Artifact`（0.1.7 发布 v3→v4 迁移时会走）**以 `step/end leaves unresolved tool call` 拒读**。inspect 只报 `dangling-tool-call`，不补事件。上游同立场：`rejected/simplification/2026-06-20-truncate-interrupted-turns.md` 写明恢复功能应当做成显式的用户界面，而不是往正史里静默插入合成事件

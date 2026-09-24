@@ -1,0 +1,27 @@
+{
+  "description": "Six-event shape from #4549: one turn and step, an assistant message advertising a tool call, the durable tool/call, then step/end + turn/end with no tool/result. Used to demonstrate that the v0->v1 and v3->v4 *migration stages* accept this log while the *restore* validator refuses it.",
+  "events": [
+    { "type": "turn/start", "seq": 0, "time": 1000, "data": { "turn": 1 } },
+    { "type": "step/start", "seq": 1, "time": 1001, "data": { "turn": 1, "step": 1 } },
+    {
+      "type": "assistant/message",
+      "seq": 2,
+      "time": 1002,
+      "data": {
+        "turn": 1,
+        "step": 1,
+        "message": {
+          "id": "a1",
+          "role": "assistant",
+          "content": [{ "type": "tool-call", "id": "c1", "name": "bash", "arguments": "{}" }],
+          "source": { "kind": "model", "provider": "probe", "model": "probe" }
+        }
+      },
+      "surfaceOp": "append",
+      "sourceEventSeqs": []
+    },
+    { "type": "tool/call", "seq": 3, "time": 1003, "data": { "turn": 1, "step": 1, "callId": "c1", "name": "bash", "arguments": "{}" } },
+    { "type": "step/end", "seq": 4, "time": 1004, "data": { "turn": 1, "step": 1 } },
+    { "type": "turn/end", "seq": 5, "time": 1005, "data": { "turn": 1, "reason": { "kind": "completed" } } }
+  ]
+}
