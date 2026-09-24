@@ -6,6 +6,8 @@ description: |
 
 # 更新插件 — dsh-session-surgeon 自我迭代
 
+加载方式：DSH 技能目录里有就直接 `skill`；没列出（或报 unknown）就让 agent 直接 `read skills/dsh-session-surgeon-update/SKILL.md` —— 本仓库的更新流程就是这么跑通的，纯 markdown，不需要注册。
+
 用户只说「更新」或「更新插件」时，不要再问流程。加载本技能后直接执行：扫社区 → 判断该不该改代码 → 改 / 测 / 写 CHANGELOG → 对口回复 → 用 px 推 `origin/main` → 用中文汇报。
 
 仓库：当前 checkout（本机 `/Users/ming/data/project/dsh/dsh-session-surgeon`；技能里出现的 `/home/ming/...` 是旧机器路径，不要照抄）
