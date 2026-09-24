@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-surgeon-update",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "owner": "xiaoshenming",
   "status": "local",
   "maturity_tier": "production-lite",
@@ -11,16 +11,22 @@
     "agent-skills-compatible"
   ],
   "triggers": [
+    "更新",
     "更新插件",
+    "更新一下插件",
     "自我迭代",
     "逛逛社区",
+    "补扫社区",
+    "看多一点",
     "update the plugin"
   ],
   "outputs": [
     "community-scan",
+    "mention-triage",
     "code-fix",
     "changelog",
     "discussion-reply",
-    "git-push"
+    "git-push",
+    "ci-check"
   ]
 }
