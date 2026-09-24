@@ -12,6 +12,7 @@ html[data-dsh-surgeon-active] [data-dsh-surgeon-view]{display:flex;align-items:s
 [data-dsh-surgeon-view] .ss-btn{cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-button-elevated-fill);color:inherit;border-radius:8px;padding:7px 11px;font-size:13px}
 [data-dsh-surgeon-view] .ss-btn.primary{background:var(--dsw-alias-state-business-primary);color:#fff;border-color:transparent}
 [data-dsh-surgeon-view] .ss-btn.danger{color:var(--dsw-alias-state-error-primary)}
+[data-dsh-surgeon-view] .ss-rootpick{max-width:38ch;cursor:pointer;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-button-elevated-fill);color:inherit;border-radius:8px;padding:7px 9px;font:12px ui-monospace,monospace}
 [data-dsh-surgeon-view] .ss-body{display:grid;grid-template-columns:minmax(240px,30%) 1fr;min-height:0;flex:1;border-top:1px solid var(--dsw-alias-border-l2)}
 @media (max-width:820px){[data-dsh-surgeon-view] .ss-body{grid-template-columns:1fr;grid-template-rows:36% 1fr}}
 [data-dsh-surgeon-view] .ss-list{min-width:0;min-height:0;overflow:auto;padding:8px}

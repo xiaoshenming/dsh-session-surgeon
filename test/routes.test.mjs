@@ -55,6 +55,7 @@ test("makeRoutes exposes the surgeon endpoints", () => {
   const paths = makeRoutes().map((r) => r.path);
   assert.deepEqual(paths, [
     API_PREFIX + "/scan",
+    API_PREFIX + "/roots",
     API_PREFIX + "/inspect",
     API_PREFIX + "/repair",
     API_PREFIX + "/compact",

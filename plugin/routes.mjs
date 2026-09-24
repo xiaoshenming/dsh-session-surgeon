@@ -1,6 +1,6 @@
 import { inspectById, pickSession } from "../src/inspect.mjs";
 import { defaultSessionRoot, scanAll, scanHeader } from "../src/scan.mjs";
-import { listSessionFiles } from "../src/find.mjs";
+import { listSessionFiles, candidateSessionRoots } from "../src/find.mjs";
 import { repairFile } from "../src/repair.mjs";
 import { applyCompact } from "../src/compact.mjs";
 import { decodeSessionBuffer } from "../src/decode.mjs";
@@ -82,6 +82,15 @@ export function makeRoutes() {
             error: error instanceof Error ? error.message : String(error),
           });
         }
+      }),
+    },
+    {
+      kind: "exact",
+      path: `${API_PREFIX}/roots`,
+      handler: wrap(async (req, res) => {
+        if (!isLoopback(req)) return writeJson(res, 403, { error: "loopback-only" });
+        if (req.method !== "GET") return writeJson(res, 405, { error: "GET only" });
+        writeJson(res, 200, { root: defaultSessionRoot(), candidates: await candidateSessionRoots() });
       }),
     },
     {

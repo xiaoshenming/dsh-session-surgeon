@@ -19,6 +19,8 @@ window.__ModuleLoader__.load({
           "emptyScan": "还没有扫描结果",
           "scanRoot": "扫描目录",
           "emptyHint": "会话不在这个目录时：插件按本机 harness 的 DSH_HOME 找会话（默认 ~/.dsh/sessions），也可以用 DSH_SESSION_ROOT 指定。",
+          "rootLabel": "会话根",
+          "rootMissing": "目录不存在",
           "loadingChat": "正在读对话…",
           "chatFail": "读对话失败：",
           "chatEmpty": "这个文件里还没有可读的用户/助手消息。",
@@ -104,6 +106,8 @@ window.__ModuleLoader__.load({
           "emptyScan": "Nothing scanned yet",
           "scanRoot": "Scanned root",
           "emptyHint": "If your sessions live elsewhere: the plugin follows the host's DSH_HOME (default ~/.dsh/sessions); set DSH_SESSION_ROOT to point somewhere else.",
+          "rootLabel": "Session root",
+          "rootMissing": "missing",
           "loadingChat": "Reading conversation…",
           "chatFail": "Could not read the conversation: ",
           "chatEmpty": "This file has no readable user/assistant messages yet.",
@@ -189,6 +193,8 @@ window.__ModuleLoader__.load({
           "emptyScan": "Nog niets gescand",
           "scanRoot": "Gescande map",
           "emptyHint": "Staan je sessies ergens anders? De plug-in volgt de DSH_HOME van de host (standaard ~/.dsh/sessions); zet DSH_SESSION_ROOT om een andere map te kiezen.",
+          "rootLabel": "Sessiemap",
+          "rootMissing": "ontbreekt",
           "loadingChat": "Gesprek lezen…",
           "chatFail": "Gesprek kon niet worden gelezen: ",
           "chatEmpty": "Dit bestand bevat nog geen leesbare gebruiker/assistent-berichten.",
@@ -398,7 +404,7 @@ window.__ModuleLoader__.load({
     }
     function mountPanel(controller, ctx) {
       let container;
-      const state = { rows: [], selected: "", detail: "", raw: "", busy: false, scanned: false, chat: null, titles: {}, root: "", scanError: "" };
+      const state = { rows: [], selected: "", detail: "", raw: "", busy: false, scanned: false, chat: null, titles: {}, root: "", roots: [], scanError: "" };
       const selectedRow = () => state.rows.find((r) => sessionIdOf(r) === state.selected);
         const listHtml = () => {
           const groups = new Map();
@@ -430,7 +436,10 @@ window.__ModuleLoader__.load({
             + chatHtml()
             + '<details><summary>' + T("tech") + "</summary><pre>" + esc(state.raw || T("techEmpty")) + "</pre></details>"
           : '<div class="ss-note">' + T("pickHint") + "<br><br>" + T("repairHint") + "</div>";
-        container.innerHTML = '<div class="ss-shell"><div class="ss-head"><div><h1>' + T("panel.title") + '</h1><p class="ss-sub">' + T("panel.sub") + '</p></div><div class="ss-actions"><button type="button" class="ss-btn" data-act="scan">' + T("scan") + '</button><button type="button" class="ss-btn" data-act="close">' + T("close") + "</button></div></div><div class=\"ss-body\"><div class=\"ss-list\">" + listHtml() + '</div><div class="ss-main">' + main + "</div></div></div>";
+        const rootPicker = state.roots.length > 1 || state.scanError
+          ? '<select class="ss-rootpick" data-act="pick-root" title="' + T("rootLabel") + '">' + state.roots.map((c) => '<option value="' + esc(c.root) + '"' + (c.root === state.root ? " selected" : "") + '>' + esc(c.label) + (c.exists === false ? " (" + T("rootMissing") + ")" : "") + " · " + esc(c.root) + "</option>").join("") + "</select>"
+          : "";
+        container.innerHTML = '<div class="ss-shell"><div class="ss-head"><div><h1>' + T("panel.title") + '</h1><p class="ss-sub">' + T("panel.sub") + '</p></div><div class="ss-actions">' + rootPicker + '<button type="button" class="ss-btn" data-act="scan">' + T("scan") + '</button><button type="button" class="ss-btn" data-act="close">' + T("close") + "</button></div></div><div class=\"ss-body\"><div class=\"ss-list\">" + listHtml() + '</div><div class="ss-main">' + main + "</div></div></div>";
       };
       const run = async (label, fn) => {
         if (state.busy) return;
@@ -462,7 +471,7 @@ window.__ModuleLoader__.load({
       const scan = () => run(T("busyScan"), async () => {
         let data;
         try {
-          data = await api(API + "/scan");
+          data = await api(API + "/scan" + (state.root ? "?root=" + encodeURIComponent(state.root) : ""));
         } catch (error) {
           state.rows = [];
           state.scanned = true;
@@ -470,13 +479,35 @@ window.__ModuleLoader__.load({
           throw error;
         }
         state.rows = data.sessions || [];
-        state.root = data.root || "";
+        state.root = data.root || state.root;
+        if (state.root && !state.roots.some((c) => c.root === state.root)) state.roots.push({ root: state.root, label: state.root, exists: !data.error });
         state.scanError = data.error || "";
         state.scanned = true;
         if (!state.selected && state.rows[0]) state.selected = sessionIdOf(state.rows[0]);
         if (state.selected) loadChat(state.selected);
         return data;
       });
+      const loadRoots = async () => {
+        try {
+          const data = await api(API + "/roots");
+          state.roots = data.candidates || [];
+          let saved = "";
+          try { saved = localStorage.getItem("dsh.sessionSurgeon.root") || ""; } catch { saved = ""; }
+          if (saved && state.roots.some((c) => c.root === saved)) state.root = saved;
+          else if (!state.root) state.root = data.root || state.roots[0]?.root || "";
+        } catch {
+          state.roots = [];
+        }
+        scan();
+      };
+      const onChange = (event) => {
+        const select = event.target?.closest?.("select[data-act='pick-root']");
+        if (!select) return;
+        state.root = select.value;
+        state.rows = []; state.selected = ""; state.detail = ""; state.raw = ""; state.chat = null; state.scanError = ""; state.scanned = false;
+        try { localStorage.setItem("dsh.sessionSurgeon.root", state.root); } catch { /* private mode */ }
+        scan();
+      };
       const onClick = (event) => {
         const act = event.target?.closest?.("[data-act]")?.getAttribute("data-act");
         const row = event.target?.closest?.("[data-id]");
@@ -516,6 +547,7 @@ window.__ModuleLoader__.load({
         container = document.createElement("div");
         container.dataset.dshSurgeonView = "";
         container.addEventListener("click", onClick);
+        container.addEventListener("change", onChange);
         document.body.appendChild(container);
         render();
       };
@@ -524,7 +556,7 @@ window.__ModuleLoader__.load({
           document.documentElement.setAttribute(ACTIVE, "");
           document.dispatchEvent(new CustomEvent(EVENT, { detail: "session-surgeon" }));
           ensure();
-          if (!state.scanned) scan();
+          if (!state.scanned && !state.busy) { if (state.roots.length === 0) loadRoots(); else scan(); }
         } else document.documentElement.removeAttribute(ACTIVE);
       };
       const unsub = controller.subscribe(applyActive);

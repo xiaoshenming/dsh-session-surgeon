@@ -4,7 +4,7 @@ import { mkdtemp } from "node:fs/promises";
 import { EventEmitter } from "node:events";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { defaultSessionRoot } from "../src/find.mjs";
+import { candidateSessionRoots, defaultSessionRoot } from "../src/find.mjs";
 import { makeRoutes } from "../plugin/routes.mjs";
 
 async function withEnv(env, fn) {
@@ -62,6 +62,39 @@ async function scanViaRoute() {
   await route.handler(req, res);
   return { status: res.statusCode, json: res.body ? JSON.parse(res.body) : null };
 }
+
+test("candidate roots put the host roots first and dedupe", async () => {
+  await withEnv({ DSH_SESSION_ROOT: undefined, DSH_HOME: undefined }, async () => {
+    const candidates = await candidateSessionRoots();
+    assert.equal(candidates[0].root, join(homedir(), ".dsh", "sessions"));
+    assert.equal(new Set(candidates.map((c) => c.root)).size, candidates.length);
+    assert.ok(candidates.every((c) => typeof c.exists === "boolean"));
+  });
+  await withEnv({ DSH_SESSION_ROOT: undefined, DSH_HOME: join(homedir(), ".dsh") }, async () => {
+    const candidates = await candidateSessionRoots();
+    // ~/.dsh/sessions arrives once, as the DSH_HOME candidate, not twice.
+    const hits = candidates.filter((c) => c.root === join(homedir(), ".dsh", "sessions"));
+    assert.equal(hits.length, 1);
+    assert.equal(hits[0].label, "DSH_HOME");
+  });
+  await withEnv({ DSH_SESSION_ROOT: "/tmp/explicit-sessions", DSH_HOME: undefined }, async () => {
+    const candidates = await candidateSessionRoots();
+    assert.equal(candidates[0].root, "/tmp/explicit-sessions");
+    assert.equal(candidates[0].label, "DSH_SESSION_ROOT");
+  });
+});
+
+test("the roots endpoint lists candidates over loopback GET", async () => {
+  const route = makeRoutes().find((r) => r.path.endsWith("/roots"));
+  const req = new FakeReq({ url: "/api/session-surgeon/roots" });
+  const res = new FakeRes();
+  await route.handler(req, res);
+  const body = JSON.parse(res.body);
+  assert.equal(res.statusCode, 200);
+  assert.equal(typeof body.root, "string");
+  assert.ok(Array.isArray(body.candidates));
+  assert.ok(body.candidates.length >= 1);
+});
 
 test("scan on a missing root answers with the root and the reason, not a bare 500", async () => {
   const missing = join(await mkdtemp(join(tmpdir(), "surgeon-missing-")), "nope");

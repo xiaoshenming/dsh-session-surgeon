@@ -30,6 +30,47 @@ async function exists(path) {
 }
 
 /**
+ * Roots the panel can offer, host order first ($DSH_SESSION_ROOT, $DSH_HOME,
+ * ~/.dsh), then any sibling `~/.<name containing dsh>/sessions` home that
+ * exists — several DSH_HOME libraries side by side are a normal setup, and
+ * looking at the wrong one used to read as "no sessions at all".
+ */
+export async function candidateSessionRoots() {
+  const out = [];
+  const seen = new Set();
+  const add = async (root, label) => {
+    if (!root) return;
+    const resolved = resolve(root);
+    if (seen.has(resolved)) return;
+    seen.add(resolved);
+    out.push({ root: resolved, label, exists: await exists(resolved) });
+  };
+
+  await add(process.env.DSH_SESSION_ROOT, "DSH_SESSION_ROOT");
+  if (process.env.DSH_HOME) await add(join(process.env.DSH_HOME, "sessions"), "DSH_HOME");
+  await add(join(homedir(), ".dsh", "sessions"), "~/.dsh");
+
+  const home = homedir();
+  let entries = [];
+  try {
+    entries = await readdir(home, { withFileTypes: true });
+  } catch {
+    entries = [];
+  }
+  const siblings = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith(".")) continue;
+    if (!entry.name.toLowerCase().includes("dsh")) continue;
+    const sessions = join(home, entry.name, "sessions");
+    if (await exists(sessions)) siblings.push({ root: sessions, label: entry.name });
+  }
+  siblings.sort((a, b) => a.root.localeCompare(b.root));
+  for (const sibling of siblings) await add(sibling.root, sibling.label);
+
+  return out;
+}
+
+/**
  * Two-level walk: root/<project>/<session>/{session.jsonl.zstd|session.vN.jsonl.zstd|plaintext}.
  * Sibling `.tmp` names are listed; they are never treated as the canonical log.
  * When several generations exist, pick the highest the installed runtime can read.
