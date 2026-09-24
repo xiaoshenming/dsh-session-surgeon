@@ -10,7 +10,7 @@ The six-event shape from
 [#4549](https://github.com/deepseek-ai/deepseek-harness/discussions/4549): a
 `tool/call` is durable, its `tool/result` never is, and the step/turn close
 anyway. Five paths disagree about it — measured identically on
-`@deepseek-ai/dsh@0.1.7-rc.1` and `0.1.7-rc.2`:
+`@deepseek-ai/dsh@0.1.7-rc.2` (the pinned runtime) and `0.1.7-rc.1`:
 
 | path | entry point | result |
 |---|---|---|

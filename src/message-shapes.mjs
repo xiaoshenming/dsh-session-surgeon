@@ -1,6 +1,6 @@
 /**
  * Released-writer message shapes the frozen converters refuse, reported in
- * #6559 and still present on 0.1.7-rc.1:
+ * #6559 and still present on 0.1.7-rc.1 / rc.2:
  *
  * - a retired `source.kind` literal (dsh-agent-instructions wrote
  *   {kind:"instruction-hint", plugin}) is not in the v2→v3 SOURCE_KINDS, so

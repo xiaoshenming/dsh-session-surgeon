@@ -22,6 +22,7 @@ All notable user-facing changes to dsh-session-surgeon. Dates are UTC.
 
 ### Changed
 
+- Development runtime pinned to **`@deepseek-ai/dsh@0.1.7-rc.2`** (`npm next`, format v4; `latest` stays 0.1.5-rc.3) — the pin, the lockfile and the workspace `minimumReleaseAgeExclude` list all move together. Everything in this release was re-run on rc.2: the five-row probe prints the same table, the full suite is green (158 pass locally, CI-equivalent 157 pass / 6 skip), and the known gates (descriptor version, plugin-source `form`, retired `instruction-hint`, inserted-message `id`/`role`) are all still present.
 - Follow the **installed** DSH runtime (`0.1.2-rc.1` catalog, native `decodeSeqRanges`). Bundled fallback stays the older rc.2 vocabulary. `model/selection` is only shimmed to `ignorable` when the active loader does not know it. Compressed `sourceEventSeqs` ranges are not rewritten on a harness that already expands them.
 - Peer `@deepseek-ai/dsh-tools` range is `>=0.1.0-rc.6 <0.2.0` so `0.1.2-rc.1` resolves (a caret on a prerelease does not).
 - Compact refuses unloadable files (seq gap / failed frames / newer format). Repair first, with all writers stopped — compact itself does not create seq holes, but a second live writer after rewrite will.
