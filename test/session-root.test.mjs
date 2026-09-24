@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { cp, mkdir, mkdtemp } from "node:fs/promises";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const FIX = join(dirname(fileURLToPath(import.meta.url)), "../fixtures/synthetic/healthy-packed.session.jsonl.zstd");
 import { EventEmitter } from "node:events";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -69,6 +73,7 @@ test("candidate roots put the host roots first and dedupe", async () => {
     assert.equal(candidates[0].root, join(homedir(), ".dsh", "sessions"));
     assert.equal(new Set(candidates.map((c) => c.root)).size, candidates.length);
     assert.ok(candidates.every((c) => typeof c.exists === "boolean"));
+    assert.ok(candidates.every((c) => typeof c.sessions === "number"));
   });
   await withEnv({ DSH_SESSION_ROOT: undefined, DSH_HOME: join(homedir(), ".dsh") }, async () => {
     const candidates = await candidateSessionRoots();
@@ -105,5 +110,47 @@ test("scan on a missing root answers with the root and the reason, not a bare 50
     assert.equal(out.json.count, 0);
     assert.deepEqual(out.json.sessions, []);
     assert.match(out.json.error, /cannot read session root/);
+  });
+});
+
+test("discovery is by home shape, not by name, and counts sessions", async () => {
+  const fakeHome = await mkdtemp(join(tmpdir(), "surgeon-home-"));
+  const stage = async (rel, id) => {
+    const dir = join(fakeHome, rel);
+    await mkdir(dir, { recursive: true });
+    await cp(FIX, join(dir, "session.jsonl.zstd"));
+    return dir;
+  };
+  await stage(".dsh/sessions/--p--/session-default", "session-default");
+  await stage("custom-lib/sessions/--p--/session-inside", "session-inside");   // DSH home, name has no "dsh"
+  await mkdir(join(fakeHome, "custom-lib", "profiles"), { recursive: true });  // home marker
+  await stage("sessions/--p--/session-bare", "session-bare");                   // bare sessions dir
+
+  await withEnv({ HOME: fakeHome, DSH_SESSION_ROOT: undefined, DSH_HOME: undefined }, async () => {
+    const candidates = await candidateSessionRoots();
+    const byRoot = new Map(candidates.map((c) => [c.root, c]));
+    const defaultRoot = join(fakeHome, ".dsh", "sessions");
+    assert.equal(byRoot.get(defaultRoot)?.sessions, 1);
+    assert.equal(byRoot.get(join(fakeHome, "custom-lib", "sessions"))?.label, "custom-lib");
+    assert.equal(byRoot.get(join(fakeHome, "custom-lib", "sessions"))?.sessions, 1);
+    assert.equal(byRoot.get(join(fakeHome, "sessions"))?.sessions, 1);
+    assert.equal(new Set(candidates.map((c) => c.root)).size, candidates.length);
+  });
+});
+
+test("a ~/… root from the picker is expanded and scanned", async () => {
+  const fakeHome = await mkdtemp(join(tmpdir(), "surgeon-tilde-"));
+  const dir = join(fakeHome, "sessions", "--p--", "session-tilde");
+  await mkdir(dir, { recursive: true });
+  await cp(FIX, join(dir, "session.jsonl.zstd"));
+
+  await withEnv({ HOME: fakeHome, DSH_SESSION_ROOT: undefined, DSH_HOME: undefined }, async () => {
+    const route = makeRoutes().find((r) => r.path.endsWith("/scan"));
+    const req = new FakeReq({ url: "/api/session-surgeon/scan?root=" + encodeURIComponent("~/sessions") });
+    const res = new FakeRes();
+    await route.handler(req, res);
+    const body = JSON.parse(res.body);
+    assert.equal(body.root, join(fakeHome, "sessions"));
+    assert.equal(body.count, 1);
   });
 });

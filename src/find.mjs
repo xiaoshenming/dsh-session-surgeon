@@ -29,11 +29,53 @@ async function exists(path) {
   }
 }
 
+/** Markers the official harness leaves in a DSH_HOME (seen in the wild). */
+const DSH_HOME_MARKERS = [
+  "profiles",
+  ".anonymous-user-id",
+  ".credentials.yaml",
+  "settings.yaml",
+  "settings.yaml.imported",
+];
+
+async function isDshHome(dir) {
+  for (const marker of DSH_HOME_MARKERS) {
+    if (await exists(join(dir, marker))) return true;
+  }
+  return false;
+}
+
+/** Sessions under a root: one level of project dirs holding `session-*` dirs. */
+export async function sessionCount(root) {
+  let projects;
+  try {
+    projects = await readdir(root, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  let count = 0;
+  for (const project of projects) {
+    if (!project.isDirectory()) continue;
+    let entries;
+    try {
+      entries = await readdir(join(root, project.name), { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const session of entries) {
+      if (session.isDirectory() && session.name.startsWith("session-")) count += 1;
+    }
+  }
+  return count;
+}
+
 /**
- * Roots the panel can offer, host order first ($DSH_SESSION_ROOT, $DSH_HOME,
- * ~/.dsh), then any sibling `~/.<name containing dsh>/sessions` home that
- * exists — several DSH_HOME libraries side by side are a normal setup, and
- * looking at the wrong one used to read as "no sessions at all".
+ * Every root this machine plausibly keeps sessions in, host order first:
+ * $DSH_SESSION_ROOT, $DSH_HOME/sessions, ~/.dsh/sessions, then any sibling
+ * directory under $HOME that looks like a DSH home (a marker file plus a
+ * sessions dir) or is itself a sessions dir. Several DSH_HOME libraries side
+ * by side are normal, and a tool that only guesses one of them reads as
+ * "no sessions at all" — so discovery is by home *shape*, not by name.
  */
 export async function candidateSessionRoots() {
   const out = [];
@@ -43,7 +85,8 @@ export async function candidateSessionRoots() {
     const resolved = resolve(root);
     if (seen.has(resolved)) return;
     seen.add(resolved);
-    out.push({ root: resolved, label, exists: await exists(resolved) });
+    const found = await exists(resolved);
+    out.push({ root: resolved, label, exists: found, sessions: found ? await sessionCount(resolved) : 0 });
   };
 
   await add(process.env.DSH_SESSION_ROOT, "DSH_SESSION_ROOT");
@@ -57,15 +100,21 @@ export async function candidateSessionRoots() {
   } catch {
     entries = [];
   }
-  const siblings = [];
+  const discovered = [];
   for (const entry of entries) {
-    if (!entry.isDirectory() || !entry.name.startsWith(".")) continue;
-    if (!entry.name.toLowerCase().includes("dsh")) continue;
-    const sessions = join(home, entry.name, "sessions");
-    if (await exists(sessions)) siblings.push({ root: sessions, label: entry.name });
+    if (!entry.isDirectory() || entry.name === ".dsh") continue;
+    const dir = join(home, entry.name);
+    if (await isDshHome(dir)) {
+      discovered.push({ root: join(dir, "sessions"), label: entry.name });
+      continue;
+    }
+    // A bare sessions directory outside a home (someone moved the logs).
+    if (entry.name === "sessions" || entry.name.toLowerCase().includes("dsh")) {
+      if ((await sessionCount(dir)) > 0) discovered.push({ root: dir, label: entry.name });
+    }
   }
-  siblings.sort((a, b) => a.root.localeCompare(b.root));
-  for (const sibling of siblings) await add(sibling.root, sibling.label);
+  discovered.sort((a, b) => a.label.localeCompare(b.label));
+  for (const sibling of discovered) await add(sibling.root, sibling.label);
 
   return out;
 }

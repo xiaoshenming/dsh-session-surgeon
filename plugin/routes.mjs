@@ -7,6 +7,8 @@ import { decodeSessionBuffer } from "../src/decode.mjs";
 import { exportSession } from "../src/export.mjs";
 import { buildTranscript } from "../src/transcript.mjs";
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { resolve } from "node:path";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,6 +42,23 @@ function queryOf(req) {
   return url.searchParams;
 }
 
+/**
+ * Accept a user-typed root: trim, drop quotes, expand a leading `~`, resolve.
+ * The picker's "other directory" field sends whatever was pasted.
+ */
+function normalizeRoot(value) {
+  if (typeof value !== "string") return "";
+  const raw = value.trim().replace(/^['"]|['"]$/g, "");
+  if (raw === "") return "";
+  if (raw === "~") return resolve(homedir());
+  if (raw.startsWith("~/")) return resolve(homedir(), raw.slice(2));
+  return resolve(raw);
+}
+
+function rootFrom(value) {
+  return normalizeRoot(value) || defaultSessionRoot();
+}
+
 async function resolveFile(root, id) {
   const entries = await listSessionFiles(root);
   const scanned = [];
@@ -69,7 +88,7 @@ export function makeRoutes() {
       handler: wrap(async (req, res) => {
         if (!isLoopback(req)) return writeJson(res, 403, { error: "loopback-only" });
         if (req.method !== "GET") return writeJson(res, 405, { error: "GET only" });
-        const root = queryOf(req).get("root") || defaultSessionRoot();
+        const root = rootFrom(queryOf(req).get("root"));
         try {
           writeJson(res, 200, await scanAll(root));
         } catch (error) {
@@ -102,7 +121,7 @@ export function makeRoutes() {
         const q = queryOf(req);
         const id = q.get("id");
         if (!id) return writeJson(res, 400, { error: "id required" });
-        const root = q.get("root") || defaultSessionRoot();
+        const root = rootFrom(q.get("root"));
         writeJson(res, 200, await inspectById(root, id));
       }),
     },
@@ -115,7 +134,7 @@ export function makeRoutes() {
         const body = await readJson(req);
         const id = body.id;
         if (typeof id !== "string" || !id) return writeJson(res, 400, { error: "id required" });
-        const root = body.root || defaultSessionRoot();
+        const root = rootFrom(body.root);
         const entry = await resolveFile(root, id);
         writeJson(res, 200, await repairFile(entry.file, { dryRun: body.apply !== true }));
       }),
@@ -133,7 +152,7 @@ export function makeRoutes() {
         if (!Number.isSafeInteger(keepLastTurns) || keepLastTurns < 1) {
           return writeJson(res, 400, { error: "keepLastTurns must be an integer >= 1" });
         }
-        const root = body.root || defaultSessionRoot();
+        const root = rootFrom(body.root);
         const entry = await resolveFile(root, id);
         writeJson(res, 200, await applyCompact({
           file: entry.file,
@@ -151,7 +170,7 @@ export function makeRoutes() {
         const q = queryOf(req);
         const id = q.get("id");
         if (!id) return writeJson(res, 400, { error: "id required" });
-        const root = q.get("root") || defaultSessionRoot();
+        const root = rootFrom(q.get("root"));
         const entry = await resolveFile(root, id);
         const decoded = decodeSessionBuffer(await readFile(entry.file));
         const transcript = buildTranscript(decoded.events);
@@ -176,7 +195,7 @@ export function makeRoutes() {
         const q = queryOf(req);
         const id = q.get("id");
         if (!id) return writeJson(res, 400, { error: "id required" });
-        const root = q.get("root") || defaultSessionRoot();
+        const root = rootFrom(q.get("root"));
         const entry = await resolveFile(root, id);
         const decoded = decodeSessionBuffer(await readFile(entry.file));
         const exported = exportSession(decoded, { redact: q.get("redact") !== "0" });

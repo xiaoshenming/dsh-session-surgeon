@@ -51,7 +51,7 @@ export DSH_HOME="$HOME/.dsh-surgeon-dev"
 ./node_modules/.bin/dsh web
 ```
 
-`DSH_HOME` keeps development sessions separate, and the panel/CLI follow it (`$DSH_HOME/sessions`; `DSH_SESSION_ROOT` overrides). Avoid reinstalling this checkout with npm: duplicate physical copies of `@deepseek-ai/dsh-tools` can make tool calls fail with `reading 'prepare'`.
+`DSH_HOME` keeps development sessions separate; the panel/CLI follow it (`$DSH_SESSION_ROOT` → `$DSH_HOME/sessions` → `~/.dsh/sessions`) and the panel's *session root* picker lists every DSH home it can find on the machine (by home shape, plus any path you type), so sessions in the other home are one click away. Avoid reinstalling this checkout with npm: duplicate physical copies of `@deepseek-ai/dsh-tools` can make tool calls fail with `reading 'prepare'`.
 
 In an agent chat that has this checkout (or the installed plugin skills), **更新 / 更新插件** is enough: scan official Discussions, absorb in-scope repair feedback, changelog, reply, push `main` via `px` (`127.0.0.1:7897`). See [skills/dsh-session-surgeon-update/SKILL.md](./skills/dsh-session-surgeon-update/SKILL.md). If the agent's skill catalog does not list it, have it read that file directly — the workflow is plain markdown and needs no registration.
 

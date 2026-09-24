@@ -20,7 +20,11 @@ window.__ModuleLoader__.load({
           "scanRoot": "扫描目录",
           "emptyHint": "会话不在这个目录时：插件按本机 harness 的 DSH_HOME 找会话（默认 ~/.dsh/sessions），也可以用 DSH_SESSION_ROOT 指定。",
           "rootLabel": "会话根",
+          "sessionUnit": "会话",
           "rootMissing": "目录不存在",
+          "rootOther": "其它目录…",
+          "rootPrompt": "输入会话目录（绝对路径或 ~/…）",
+          "rootSwitched": "默认根没有会话，已切到 {root}（{n} 条）",
           "loadingChat": "正在读对话…",
           "chatFail": "读对话失败：",
           "chatEmpty": "这个文件里还没有可读的用户/助手消息。",
@@ -107,7 +111,11 @@ window.__ModuleLoader__.load({
           "scanRoot": "Scanned root",
           "emptyHint": "If your sessions live elsewhere: the plugin follows the host's DSH_HOME (default ~/.dsh/sessions); set DSH_SESSION_ROOT to point somewhere else.",
           "rootLabel": "Session root",
+          "sessionUnit": "sessions",
           "rootMissing": "missing",
+          "rootOther": "Other directory…",
+          "rootPrompt": "Session directory (absolute or ~/…)",
+          "rootSwitched": "The default root had no sessions; switched to {root} ({n})",
           "loadingChat": "Reading conversation…",
           "chatFail": "Could not read the conversation: ",
           "chatEmpty": "This file has no readable user/assistant messages yet.",
@@ -194,7 +202,11 @@ window.__ModuleLoader__.load({
           "scanRoot": "Gescande map",
           "emptyHint": "Staan je sessies ergens anders? De plug-in volgt de DSH_HOME van de host (standaard ~/.dsh/sessions); zet DSH_SESSION_ROOT om een andere map te kiezen.",
           "rootLabel": "Sessiemap",
+          "sessionUnit": "sessies",
           "rootMissing": "ontbreekt",
+          "rootOther": "Andere map…",
+          "rootPrompt": "Sessiemap (absoluut of ~/…)",
+          "rootSwitched": "De standaardmap had geen sessies; overgeschakeld naar {root} ({n})",
           "loadingChat": "Gesprek lezen…",
           "chatFail": "Gesprek kon niet worden gelezen: ",
           "chatEmpty": "Dit bestand bevat nog geen leesbare gebruiker/assistent-berichten.",
@@ -402,14 +414,28 @@ window.__ModuleLoader__.load({
       if (data.health) return labelOf(data.health) + ".\n" + hintOf(data.health);
       return pretty(data);
     }
+    /**
+     * Every request has to name the root the panel is looking at, otherwise
+     * inspect/repair silently fall back to the server default and answer
+     * "not found" for a session that is plainly on screen.
+     */
+    function withRoot(path, params, root) {
+      const query = new URLSearchParams();
+      for (const [key, value] of Object.entries(params || {})) {
+        if (value !== undefined && value !== "") query.set(key, String(value));
+      }
+      if (root) query.set("root", root);
+      const qs = query.toString();
+      return API + path + (qs ? "?" + qs : "");
+    }
     function mountPanel(controller, ctx) {
       let container;
-      const state = { rows: [], selected: "", detail: "", raw: "", busy: false, scanned: false, chat: null, titles: {}, root: "", roots: [], scanError: "" };
+      const state = { rows: [], selected: "", detail: "", raw: "", busy: false, scanned: false, chat: null, titles: {}, root: "", roots: [], scanError: "", rootNote: "" };
       const selectedRow = () => state.rows.find((r) => sessionIdOf(r) === state.selected);
         const listHtml = () => {
           const groups = new Map();
           for (const row of state.rows) { const key = workspaceOf(row); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row); }
-          const rootLine = state.root ? '<div class="ss-root">' + T("scanRoot") + " " + esc(state.root) + " · " + state.rows.length + "</div>" : "";
+          const rootLine = state.root ? '<div class="ss-root">' + T("scanRoot") + " " + esc(state.root) + " · " + state.rows.length + (state.rootNote ? " — " + esc(state.rootNote) : "") + "</div>" : "";
           const empty = '<div class="ss-note">' + T("emptyScan")
             + (state.root ? "<br>" + T("scanRoot") + " " + esc(state.root) : "")
             + (state.scanError ? "<br>" + T("explain.error") + esc(state.scanError) : "<br>" + T("emptyHint"))
@@ -437,7 +463,9 @@ window.__ModuleLoader__.load({
             + '<details><summary>' + T("tech") + "</summary><pre>" + esc(state.raw || T("techEmpty")) + "</pre></details>"
           : '<div class="ss-note">' + T("pickHint") + "<br><br>" + T("repairHint") + "</div>";
         const rootPicker = state.roots.length > 1 || state.scanError
-          ? '<select class="ss-rootpick" data-act="pick-root" title="' + T("rootLabel") + '">' + state.roots.map((c) => '<option value="' + esc(c.root) + '"' + (c.root === state.root ? " selected" : "") + '>' + esc(c.label) + (c.exists === false ? " (" + T("rootMissing") + ")" : "") + " · " + esc(c.root) + "</option>").join("") + "</select>"
+          ? '<select class="ss-rootpick" data-act="pick-root" title="' + T("rootLabel") + '">'
+            + state.roots.map((c) => '<option value="' + esc(c.root) + '"' + (c.root === state.root ? " selected" : "") + '>' + esc(c.label) + " · " + (c.exists === false ? T("rootMissing") : c.sessions + " " + T("sessionUnit")) + " · " + esc(c.root) + "</option>").join("")
+            + '<option value="__other__">' + T("rootOther") + "</option></select>"
           : "";
         container.innerHTML = '<div class="ss-shell"><div class="ss-head"><div><h1>' + T("panel.title") + '</h1><p class="ss-sub">' + T("panel.sub") + '</p></div><div class="ss-actions">' + rootPicker + '<button type="button" class="ss-btn" data-act="scan">' + T("scan") + '</button><button type="button" class="ss-btn" data-act="close">' + T("close") + "</button></div></div><div class=\"ss-body\"><div class=\"ss-list\">" + listHtml() + '</div><div class="ss-main">' + main + "</div></div></div>";
       };
@@ -457,7 +485,7 @@ window.__ModuleLoader__.load({
       const loadChat = async (id) => {
         state.selected = id; state.chat = null; render();
         try {
-          const data = await api(API + "/transcript?id=" + encodeURIComponent(id));
+          const data = await api(withRoot("/transcript", { id }, state.root));
           if (state.selected !== id) return;
           state.chat = data;
           if (data.title) state.titles[id] = data.title;
@@ -471,7 +499,7 @@ window.__ModuleLoader__.load({
       const scan = () => run(T("busyScan"), async () => {
         let data;
         try {
-          data = await api(API + "/scan" + (state.root ? "?root=" + encodeURIComponent(state.root) : ""));
+          data = await api(withRoot("/scan", {}, state.root));
         } catch (error) {
           state.rows = [];
           state.scanned = true;
@@ -494,7 +522,15 @@ window.__ModuleLoader__.load({
           let saved = "";
           try { saved = localStorage.getItem("dsh.sessionSurgeon.root") || ""; } catch { saved = ""; }
           if (saved && state.roots.some((c) => c.root === saved)) state.root = saved;
-          else if (!state.root) state.root = data.root || state.roots[0]?.root || "";
+          else if (!state.root) {
+            const host = data.root || "";
+            const nonEmpty = state.roots.filter((c) => c.sessions > 0).sort((a, b) => b.sessions - a.sessions);
+            const hostCandidate = state.roots.find((c) => c.root === host);
+            if (nonEmpty.length > 0 && (!hostCandidate || hostCandidate.sessions === 0)) {
+              state.root = nonEmpty[0].root;
+              if (hostCandidate && nonEmpty[0].root !== host) state.rootNote = T("rootSwitched", { root: nonEmpty[0].root, n: nonEmpty[0].sessions });
+            } else state.root = host || state.roots[0]?.root || "";
+          }
         } catch {
           state.roots = [];
         }
@@ -503,7 +539,16 @@ window.__ModuleLoader__.load({
       const onChange = (event) => {
         const select = event.target?.closest?.("select[data-act='pick-root']");
         if (!select) return;
-        state.root = select.value;
+        if (select.value === "__other__") {
+          let typed = "";
+          try { typed = window.prompt(T("rootPrompt"), state.root || "") || ""; } catch { typed = ""; }
+          if (!typed.trim()) { render(); return; }
+          const root = typed.trim();
+          if (!state.roots.some((c) => c.root === root)) state.roots.push({ root, label: T("rootOther"), exists: true, sessions: 0 });
+          state.root = root;
+        } else {
+          state.root = select.value;
+        }
         state.rows = []; state.selected = ""; state.detail = ""; state.raw = ""; state.chat = null; state.scanError = ""; state.scanned = false;
         try { localStorage.setItem("dsh.sessionSurgeon.root", state.root); } catch { /* private mode */ }
         scan();
@@ -516,7 +561,7 @@ window.__ModuleLoader__.load({
         if (act === "scan") scan();
         if (act === "inspect") {
           if (!state.selected) return toast(T("toast.pickFirst"));
-          run(T("busyInspect"), () => api(API + "/inspect?id=" + encodeURIComponent(state.selected)));
+          run(T("busyInspect"), () => api(withRoot("/inspect", { id: state.selected }, state.root)));
         }
         if (act === "copy") {
           const id = state.selected || currentFromCtx(ctx);
@@ -527,12 +572,12 @@ window.__ModuleLoader__.load({
           if (!state.selected) return toast(T("toast.pickFirst"));
           const applyWrite = act === "repair-apply";
           if (applyWrite && !window.confirm(T("confirm.apply"))) return;
-          run(applyWrite ? T("busyRepairApply") : T("busyRepairPreview"), () => api(API + "/repair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: state.selected, apply: applyWrite }) }));
+          run(applyWrite ? T("busyRepairApply") : T("busyRepairPreview"), () => api(API + "/repair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: state.selected, apply: applyWrite, root: state.root }) }));
         }
         if (act === "export") {
           if (!state.selected) return toast(T("toast.pickFirst"));
           run(T("busyExport"), async () => {
-            const data = await api(API + "/export?id=" + encodeURIComponent(state.selected));
+            const data = await api(withRoot("/export", { id: state.selected }, state.root));
             const a = document.createElement("a");
             a.href = URL.createObjectURL(new Blob([data.text || ""], { type: "application/x-ndjson" }));
             a.download = (data.id || state.selected) + ".jsonl";
@@ -568,7 +613,7 @@ window.__ModuleLoader__.load({
         if (!id) return;
         controller.open();
         loadChat(id);
-        if (event.detail?.act === "repair") run(T("busyRepairPreview"), () => api(API + "/repair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, apply: false }) }));
+        if (event.detail?.act === "repair") run(T("busyRepairPreview"), () => api(API + "/repair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, apply: false, root: state.root }) }));
       };
       document.addEventListener(EVENT, onActivate);
       document.addEventListener("dsh-surgeon-open", onOpen);
