@@ -173,7 +173,7 @@ const MESSAGES = {
   "v0-plugin-source-form":
     "plugin message source pairs summary/sections with the wrong form — the converter refuses (#6194); repair adds the matching form or drops the display-only member",
   "v0-chunk-provenance":
-    "assistant/message chunk provenance is not one complete ordered attempt — the 0.1.5 migration refuses (#6175); repair cites the on-disk chunk run",
+    "assistant/message chunk provenance is not one complete ordered attempt — the converter refuses the session on both the v0→v1 and the v1→v2 edge (#6175 / #7824); repair cites the on-disk chunk run",
   "v0-retired-source-kind":
     "message source uses a retired kind literal whose successor keeps the same members — the 0.1.5 v2→v3 migration refuses it as unclassified (#6559); repair renames the kind only",
   "v0-inbox-inserted-message":

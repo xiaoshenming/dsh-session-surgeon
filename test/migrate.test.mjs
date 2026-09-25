@@ -1,8 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import { decodeSessionBuffer } from "../src/decode.mjs";
 import { planRepair } from "../src/repair.mjs";
 import { encodeSession } from "../src/encode.mjs";
+import { dshRequires } from "../src/runtime.mjs";
 import {
   applyMigrationFixes,
   chunkProvenanceHits,
@@ -269,4 +271,101 @@ test("decode and planRepair handle both #6559 shapes end to end", async () => {
   assert.ok(actions.includes("v0-inbox-inserted-message"));
   assert.equal(plan.events[2].data.source.kind, "plugin");
   assert.equal(plan.events[1].data.inserted[0].role, "user");
+});
+
+/**
+ * #7824: an assistant/message declares a range that sweeps in the seq of a
+ * non-chunk event (there, a `session/end-seed`) sitting just before the
+ * attempt's first chunk. The declared count is then one larger than the run the
+ * migration reconstructs, and the v1→v2 stage refuses the session.
+ */
+const END_SEED_SWEPT = [
+  ev("turn/start", 0, { turn: 1 }),
+  ev("step/start", 1, { turn: 1, step: 1 }),
+  ev("session/end-seed", 2, {}),
+  chunk(3, 1, 1, "a"),
+  chunk(4, 1, 1, "b"),
+  chunk(5, 1, 1, "c"),
+  ev("assistant/message", 6, {
+    turn: 1,
+    step: 1,
+    message: {
+      id: "a1",
+      role: "assistant",
+      source: { kind: "model", provider: "p", model: "m" },
+      content: [{ type: "text", text: "abc" }],
+    },
+  }, { surfaceOp: "append", sourceEventSeqs: [[2, 5]] }),
+  ev("step/end", 7, { turn: 1, step: 1 }),
+  ev("turn/end", 8, { turn: 1, reason: { kind: "completed" } }),
+];
+
+test("a range sweeping in a non-chunk seq is trimmed to the on-disk run (#7824)", () => {
+  assert.deepEqual(chunkProvenanceHits(END_SEED_SWEPT), [{ seq: 6, expect: [3, 4, 5] }]);
+  const { value, actions } = applyMigrationFixes(END_SEED_SWEPT, { converters: true });
+  assert.ok(actions.some((action) => action.code === "v0-chunk-provenance"));
+  assert.deepEqual(value[6].sourceEventSeqs, [3, 4, 5]);
+  assert.deepEqual(value[2], END_SEED_SWEPT[2]);
+});
+
+/** Paths to the two official stages of the v0→v1→v2 chain, or null. */
+function officialChainPaths() {
+  const names = {
+    v0: "@deepseek-ai/dsh-session-format-v0-to-v1",
+    v1to2: "@deepseek-ai/dsh-session-format-v1-to-v2",
+  };
+  const manifest = dshRequires()
+    .map((requireFrom) => {
+      try {
+        return requireFrom.resolve("@deepseek-ai/dsh/package.json");
+      } catch {
+        return null;
+      }
+    })
+    .find(Boolean);
+  if (!manifest) return null;
+  const sibling = createRequire(manifest);
+  const paths = {};
+  for (const [key, name] of Object.entries(names)) {
+    try {
+      paths[key] = sibling.resolve(name);
+    } catch {
+      return null;
+    }
+  }
+  return paths;
+}
+
+test("the official v0→v1→v2 chain refuses that row, and repair makes it pass (#7824)", async (t) => {
+  const paths = officialChainPaths();
+  if (!paths) {
+    t.skip("official session format packages not resolvable");
+    return;
+  }
+  const v0 = await import(paths.v0);
+  const v1to2 = await import(paths.v1to2);
+  // The migration's stream accumulator wants real chunk payloads; the unit test
+  // above only cares about seqs, so swap the payload here.
+  const chainRows = END_SEED_SWEPT.map((row) =>
+    row.type === "assistant/chunk"
+      ? { ...row, data: { ...row.data, chunk: { type: "text-delta", index: 0, text: "x" } } }
+      : row,
+  );
+  const runChain = (rows) => {
+    const stage1 = v0.sessionFormatV0ToV1.createStage({
+      sourceHeader: { type: "session", version: 0, id: "session-end-seed", createdAt: 1, cwd: "/tmp/end-seed-cwd", delegationDepth: 0 },
+      sourceInheritedEventCount: 0,
+    });
+    const v1rows = [];
+    const sink = { emitEvent: (event) => v1rows.push(event), emitRun() {}, emitSystem() {} };
+    for (const row of JSON.parse(JSON.stringify(rows))) stage1.transformEvent(row, sink);
+    const stage2 = v1to2.sessionFormatV1ToV2.createStage({
+      sourceHeader: { version: 1, id: "session-end-seed", createdAt: 1, cwd: "/tmp/end-seed-cwd", isSeeded: false, delegationDepth: 0 },
+      sourceInheritedEventCount: 0,
+    });
+    for (const row of v1rows) stage2.transformEvent(JSON.parse(JSON.stringify(row)), { emitEvent() {}, emitRun() {}, emitSystem() {} });
+  };
+  assert.throws(() => runChain(chainRows), /not one complete ordered attempt/);
+  const { value } = applyMigrationFixes(chainRows, { converters: true });
+  assert.doesNotThrow(() => runChain(value));
 });
