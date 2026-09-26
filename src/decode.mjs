@@ -10,8 +10,10 @@ import { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 import { flatReplayStateHits } from "./replay-state.mjs";
 import { MIGRATES_V0_ON_LOAD, migrationRefusalIssues } from "./migrate.mjs";
 import { literalPluginSourceHits } from "./message-shapes.mjs";
+import { turnStepIssues } from "./turn-step.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
 export { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
+export { turnStepImbalances } from "./turn-step.mjs";
 
 const HEALTH_RANK = [
   "header-frame-corrupt",
@@ -31,6 +33,8 @@ const HEALTH_RANK = [
   "v0-retired-source-kind",
   "v0-inbox-inserted-message",
   "v4-literal-plugin-source",
+  "turn-end-while-step-open",
+  "step-after-turn-end",
   "seq-gap-tail",
   "message-missing-id",
   "lone-surrogate",
@@ -304,6 +308,10 @@ export function decodeSessionBuffer(buf) {
         });
       }
     }
+  }
+  for (const issue of turnStepIssues(finished.events)) {
+    if (MIGRATES_V0_ON_LOAD) health = worse(health, issue.code);
+    if (!issues.some((i) => i.code === issue.code)) issues.push(issue);
   }
   const dangling = danglingToolCalls(finished.events);
   if (dangling.length > 0) {

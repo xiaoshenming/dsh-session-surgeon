@@ -2,7 +2,7 @@
 
 Copy a session ID from the sidebar ⋯ menu, then paste it into a new chat so the new session can learn from the old one — the Codex-style “continue from this thread” move that stock DSH does not expose.
 
-Also repairs DeepSeek Harness sessions that refuse to load — seq gap, torn zstd, lone surrogates, and events missing their message id. `inspect` also **warns** on dangling `tool/call` (no matching `tool/result` → next model request 400) but **will not invent** a fake result. 官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
+Also repairs DeepSeek Harness sessions that refuse to load — seq gap, torn zstd, lone surrogates, and events missing their message id. `inspect` also **warns** on dangling `tool/call` (no matching `tool/result` → next model request 400) and on steps that continue a turn the log already closed (#7824: the released walker refuses those with `does not match an open turn and step`), but **will not invent** a fake result or a turn boundary. 官方以后修加载器，也救不回已经坏掉的 `session.jsonl.zstd`。
 
 > Verified against `@deepseek-ai/dsh@0.1.7-rc.2` (format **v4**, npm `next`; the same checks were run on `0.1.7-rc.1`); `session.vN.jsonl.zstd` from every released generation (v0 … v4) is inspected and repaired the same way. Catalog, seq-range handling, and format version follow the *installed* runtime.
 
@@ -86,7 +86,7 @@ Agent tools after install: `session_scan` / `session_inspect` / `session_repair`
 | command | meaning |
 |---|---|
 | `scan [root]` | list sessions + header health + orphan `.tmp` |
-| `inspect <id>` | decode every zstd frame, expand packed rows, report seq gaps / missing ids / dangling tool/call |
+| `inspect <id>` | decode every zstd frame, expand packed rows, report seq gaps / missing ids / dangling tool/call / steps after a closed turn |
 | `repair <id>` | default `--dry-run`; `--apply` rewrites after `.bak.<utc>` |
 | `compact <id> --keep-last-turns N` | keep the last N complete turns, renumber seq from 0 |
 | `export <id>` | JSONL dump; redacts secrets unless `--no-redact` |

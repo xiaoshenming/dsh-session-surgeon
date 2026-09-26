@@ -97,6 +97,8 @@ window.__ModuleLoader__.load({
           "v0-inbox-inserted-message": ["插入消息缺字段", "agent/inbox/spliced 插入的消息缺 id/role，v0→v1 转换器拒读（#6559）。修复补 id 与校验器自己写死的 user 角色，正文不动。"],
           "v4-literal-plugin-source": ["v4 插件来源字面量", "消息 source 还是退役的 {kind:\"plugin\"} 包装；v4 要求 producer 自己的 kind，官方读盘会整份拒收（#7772）。producer kind 由包名推导，离线补不出来 —— 只报告，不猜。"],
           "dangling-tool-call": ["悬空工具调用", "下次模型请求会永久 400；在 0.1.7 上整条会话可能根本打不开 —— v3→v4 的 restore 与读一份已存的 v4 日志都会因此拒收。结果只能补在还开着的 step 里，离线补不了 —— 只定位，不编假 tool/result。"],
+          "step-after-turn-end": ["回合关了还在继续", "turn/end 之后同一回合的 step 事件还在写入：官方关系校验（v1→v2 对转换后的工件跑 v0→v1 的 assertReleasedArtifactRelationships）会整份拒读，报「<类型> does not match an open turn and step」（#7824）。合并还是拆分这个回合在工件里没有唯一答案，拆分还要重编号后面所有 seq —— 只报告，不改文件。"],
+          "turn-end-while-step-open": ["回合结束时有 step 未关", "turn/end 落在某个 step 的 step/end 之前：官方校验报「turn/end <n> crosses an open step」，写者侧 dsh-session/lib/invariant.js 是同一条规则（#7824）。只报告，不改文件。"],
           "unknown-type": ["未知事件类型", "会报告，不会删行，也不会盖 ignorable。"]
         }
       },
@@ -189,6 +191,8 @@ window.__ModuleLoader__.load({
           "v0-inbox-inserted-message": ["Inserted message fields", "An agent/inbox/spliced inserted message lacks id/role, which the v0→v1 converter refuses (#6559). Repair fills an id and the validator's own user role; body text is untouched."],
           "v4-literal-plugin-source": ["v4 plugin source literal", "A message source still carries the retired {kind:\"plugin\"} wrapper. Format v4 requires a producer-owned kind and this harness refuses the whole log on read (#7772); the producer kind follows from the package name and cannot be invented offline — reported only."],
           "dangling-tool-call": ["Dangling tool call", "The next model request will 400 forever, and on 0.1.7 the session may not open at all: both the v3→v4 restore and an ordinary read of a stored v4 log refuse it. The result can only be written while the step is open, so an offline tool reports it and never invents one."],
+          "step-after-turn-end": ["Step continues a closed turn", "Step-scoped events keep writing into a turn that already emitted turn/end. The released relationship walker (the v1→v2 stage runs v0-to-v1's assertReleasedArtifactRelationships over the transformed artifact) refuses the whole session with \"<type> does not match an open turn and step\" (#7824). Merging or splitting that turn has no unique answer inside the artifact, and splitting renumbers every later seq — reported only, never edited."],
+          "turn-end-while-step-open": ["Turn ended with a step open", "turn/end lands before that step's step/end. The released walker refuses with \"turn/end <n> crosses an open step\", and the writer states the same rule in dsh-session/lib/invariant.js (#7824). Reported only, never edited."],
           "unknown-type": ["Unknown event type", "Reported; no rows deleted, nothing marked ignorable."]
         }
       },
@@ -281,6 +285,8 @@ window.__ModuleLoader__.load({
           "v0-inbox-inserted-message": ["Ingevoegd bericht mist velden", "Een ingevoegd agent/inbox/spliced-bericht mist id/role; de v0→v1-converter weigert dat (#6559). Reparatie vult een id en de user-rol die de validator zelf voorschrijft; de tekst blijft ongewijzigd."],
           "v4-literal-plugin-source": ["v4 plugin-bronletterlijk", "Een berichtbron draagt nog de oude {kind:\"plugin\"}-wrapper. Formaat v4 vereist een producer-eigen kind en deze harness weigert het hele logbestand bij het lezen (#7772); het producer-kind volgt uit de pakketnaam en is offline niet te verzinnen — alleen gemeld."],
           "dangling-tool-call": ["Hangende tool-aanroep", "De volgende modelaanvraag blijft 400 geven en op 0.1.7 opent de sessie mogelijk helemaal niet: zowel de v3→v4-restore als een gewone lezing van een opgeslagen v4-log weigert haar. Het resultaat kan alleen tijdens de open stap worden geschreven, dus een offline tool meldt het en verzint niets."],
+          "step-after-turn-end": ["Stap gaat door na gesloten beurt", "Stap-gebonden events schrijven door in een beurt die al turn/end gaf. De released relationship-walker (de v1→v2-stage draait v0-to-v1's assertReleasedArtifactRelationships op het getransformeerde artefact) weigert de hele sessie met \"<type> does not match an open turn and step\" (#7824). Samenvoegen of splitsen heeft geen uniek antwoord in het artefact en splitsen hernummert elke latere seq — alleen melden, nooit aanpassen."],
+          "turn-end-while-step-open": ["Beurt eindigde met open stap", "turn/end komt vóór de step/end van die stap. De released walker weigert met \"turn/end <n> crosses an open step\"; de writer zegt hetzelfde in dsh-session/lib/invariant.js (#7824). Alleen melden, nooit aanpassen."],
           "unknown-type": ["Onbekend gebeurtenistype", "Wordt gemeld; er worden geen regels verwijderd en niets wordt als ignorable gemarkeerd."]
         }
       }

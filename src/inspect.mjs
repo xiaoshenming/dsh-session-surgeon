@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { decodeSessionBuffer, danglingToolCalls, duplicateAdvertisedToolCallIds, emptyToolCallIds } from "./decode.mjs";
+import { decodeSessionBuffer, danglingToolCalls, duplicateAdvertisedToolCallIds, emptyToolCallIds, turnStepImbalances } from "./decode.mjs";
 import { interruptedTurnClosers } from "./closers.mjs";
 import { listSessionFiles, scanHeader } from "./scan.mjs";
 
@@ -60,6 +60,8 @@ export async function inspectEntry(entry) {
   if (decoded.packedRows) flags.push("packed-expanded");
   const dangling = danglingToolCalls(decoded.events);
   if (dangling.length) flags.push("dangling-tool-call");
+  const turnStep = turnStepImbalances(decoded.events);
+  for (const hit of turnStep) if (!flags.includes(hit.code)) flags.push(hit.code);
   const emptyIds = emptyToolCallIds(decoded.events);
   if (emptyIds.length) flags.push("empty-tool-call-id");
   const duplicateIds = duplicateAdvertisedToolCallIds(decoded.events);
@@ -97,6 +99,7 @@ export async function inspectEntry(entry) {
     flags,
     unknownTypes: decoded.unknownTypes,
     danglingToolCalls: dangling,
+    turnStepImbalances: turnStep,
     emptyToolCallIds: emptyIds,
   };
 }
