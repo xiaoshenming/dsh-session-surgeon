@@ -38,8 +38,10 @@ const ROWS = {
   "event with no data member": [{ type: "turn/start", seq: 0, time: 1 }, ev(1, "step/start", { turn: 1, step: 1 }), okMessage(), ev(3, "step/end", { turn: 1, step: 1 }), ev(4, "turn/end", { turn: 1, reason: { kind: "completed" } })],
   "unknown event with no data": frame({ type: "future/thing", seq: 2, time: 3 }),
   "assistant/chunk without chunk": frame(ev(2, "assistant/chunk", { turn: 1, step: 1 })),
-  "agent/inbox/spliced without inserted": frame(ev(2, "agent/inbox/spliced", { target: "next-turn" })),
-  "goal/change without goal": frame(ev(2, "goal/change", { kind: "start" })),
+  "agent/inbox/spliced without inserted": frame(ev(2, "agent/inbox/spliced", { target: "next-turn", start: 2 })),
+  "agent/inbox/spliced without target": frame(ev(2, "agent/inbox/spliced", { start: 2, inserted: [{ id: "i1", role: "user", source: { kind: "user" }, content: [{ type: "text", text: "x" }] }] })),
+  "goal/change without version": frame(ev(2, "goal/change", { kind: "goal/change", operation: "create", goal: { id: "g1", objective: "o" } })),
+  "goal/change without operation": frame(ev(2, "goal/change", { kind: "goal/change", version: 1, goal: { id: "g1", objective: "o" } })),
 };
 
 /** Codes these rows must produce today. */
@@ -60,6 +62,10 @@ const REPORTED = {
   "step/end without step": "v0-missing-member",
   "turn/end without reason": "v0-missing-member",
   "subagent/descriptor without version": "v0-descriptor-version",
+  "agent/inbox/spliced without inserted": "v0-missing-member",
+  "agent/inbox/spliced without target": "v0-missing-member",
+  "goal/change without version": "v0-missing-member",
+  "goal/change without operation": "v0-missing-member",
   "event with no data member": "v0-missing-member",
   "unknown event with no data": "unknown-type",
 };
@@ -68,12 +74,12 @@ const REPORTED = {
 const ACCEPTED = ["assistant/chunk without chunk"];
 
 /**
- * Shapes we still report nothing for, listed so the gap stays visible: the
- * released table in `src/released-shape.mjs` is partial on purpose. Closing one
- * of these means extending that table by the same ablation method, and this
- * test then has to move the row up into REPORTED.
+ * Shapes we still report nothing for. Empty today: the two gaps that used to be
+ * here (`agent/inbox/spliced`, `goal/change`) were closed by ablating them
+ * against the released gate, exactly as `src/released-shape.mjs` documents. A
+ * row lands here again only when a refusal is known and not yet covered.
  */
-const KNOWN_GAP = ["agent/inbox/spliced without inserted", "goal/change without goal"];
+const KNOWN_GAP = [];
 
 for (const [label, events] of Object.entries(ROWS)) {
   test(`decode never throws: ${label}`, async () => {
