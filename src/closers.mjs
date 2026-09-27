@@ -41,6 +41,12 @@ function syntheticToolResultMessage(callId, seq, started) {
   });
 }
 
+/** Content blocks of an assistant message, or none when the row is malformed. */
+function messageBlocks(event) {
+  const content = event.data?.message?.content;
+  return Array.isArray(content) ? content : [];
+}
+
 /**
  * Return deterministic synthetic events that close an open tail turn.
  * A balanced or empty log returns [].
@@ -56,7 +62,7 @@ export function interruptedTurnClosers(events) {
   for (const event of events) {
     switch (event.type) {
       case "turn/start":
-        openTurn = event.data.turn;
+        openTurn = event.data?.turn;
         openStep = null;
         pendingCalls.clear();
         break;
@@ -66,27 +72,31 @@ export function interruptedTurnClosers(events) {
         pendingCalls.clear();
         break;
       case "step/start":
-        openStep = event.data.step;
+        openStep = event.data?.step;
         break;
       case "step/end":
         pendingCalls.clear();
         openStep = null;
         break;
       case "assistant/message":
-        for (const block of event.data.message.content) {
-          if (block.type === "tool-call") {
-            pendingCalls.set(block.id, { step: event.data.step });
+        // A truncated row keeps the type but not the members. Read defensively:
+        // inspecting such a file is this tool's job, so it must report, not throw.
+        for (const block of messageBlocks(event)) {
+          if (block?.type === "tool-call") {
+            pendingCalls.set(block.id, { step: event.data?.step });
           }
         }
         break;
       case "tool/call": {
-        const entry = pendingCalls.get(event.data.callId);
+        const entry = pendingCalls.get(event.data?.callId);
         if (entry) entry.callSeq = event.seq;
         break;
       }
-      case "tool/result":
-        pendingCalls.delete(event.data.message.source.callId);
+      case "tool/result": {
+        const callId = event.data?.message?.source?.callId;
+        if (callId !== undefined) pendingCalls.delete(callId);
         break;
+      }
       default:
         break;
     }

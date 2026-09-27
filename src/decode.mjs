@@ -9,8 +9,9 @@ import { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integr
 import { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 import { flatReplayStateHits } from "./replay-state.mjs";
 import { MIGRATES_V0_ON_LOAD, migrationRefusalIssues } from "./migrate.mjs";
+import { missingMemberHits } from "./released-shape.mjs";
 import { literalPluginSourceHits } from "./message-shapes.mjs";
-import { turnStepIssues } from "./turn-step.mjs";
+import { turnStepImbalances, turnStepIssuesFrom } from "./turn-step.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
 export { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 export { turnStepImbalances } from "./turn-step.mjs";
@@ -32,6 +33,7 @@ const HEALTH_RANK = [
   "v0-chunk-provenance",
   "v0-retired-source-kind",
   "v0-inbox-inserted-message",
+  "v0-missing-member",
   "v4-literal-plugin-source",
   "turn-end-while-step-open",
   "step-after-turn-end",
@@ -309,7 +311,24 @@ export function decodeSessionBuffer(buf) {
       }
     }
   }
-  for (const issue of turnStepIssues(finished.events)) {
+  const missingMembers = fileVersion === 0 ? missingMemberHits(finished.events) : [];
+  if (missingMembers.length > 0) {
+    if (MIGRATES_V0_ON_LOAD) health = worse(health, "v0-missing-member");
+    if (!issues.some((i) => i.code === "v0-missing-member")) {
+      const rows = missingMembers.slice(0, 12);
+      issues.push({
+        code: "v0-missing-member",
+        message:
+          "released v0 shape is incomplete at seq " +
+          rows.map((hit) => `${hit.seq} (${hit.type} lacks ${hit.member})`).join(", ") +
+          " — the v0→v1 payload gate refuses the session over one such row; the member is not recoverable from the artifact, so repair only reports",
+        seqs: missingMembers.map((hit) => hit.seq),
+        missing: rows.map((hit) => `${hit.type}:${hit.member}`),
+      });
+    }
+  }
+  const turnStepHits = turnStepImbalances(finished.events);
+  for (const issue of turnStepIssuesFrom(turnStepHits)) {
     if (MIGRATES_V0_ON_LOAD) health = worse(health, issue.code);
     if (!issues.some((i) => i.code === issue.code)) issues.push(issue);
   }
@@ -355,6 +374,8 @@ export function decodeSessionBuffer(buf) {
     unknownTypes: finished.unknownTypes,
     lastSeq: finished.events.length === 0 ? -1 : finished.events[finished.events.length - 1].seq,
     overflowEvents: (finished.overflow ?? []).length,
+    turnStepImbalances: turnStepHits,
+    missingMembers,
     health,
   };
 }

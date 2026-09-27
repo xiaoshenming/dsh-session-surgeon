@@ -70,7 +70,7 @@ export function turnStepImbalances(events) {
 }
 
 /** Order matters: `worse()` picks the earlier code when both shapes are present. */
-export const TURN_STEP_CODES = ["turn-end-while-step-open", "step-after-turn-end"];
+const TURN_STEP_CODES = ["turn-end-while-step-open", "step-after-turn-end"];
 
 const STEP_AFTER_END_MESSAGE =
   " — the released relationship walker refuses the whole session with \"<type> does not match an open turn and step\" (#7824); merging or splitting that turn has no unique answer inside the artifact, and splitting renumbers every later seq and declared range, so repair only reports";
@@ -79,11 +79,11 @@ const TURN_END_OPEN_STEP_MESSAGE =
   " — the released walker refuses the whole session with \"turn/end <n> crosses an open step\" (#7824); the writer states the same rule in dsh-session/lib/invariant.js, so repair only reports";
 
 /**
- * Issues for `decode.mjs`, one per code. The seq list is capped so a session
- * with hundreds of stray steps keeps the inspect payload small.
+ * Issues for `decode.mjs`, one per code, built from hits the caller already
+ * computed. The seq list is capped so a session with hundreds of stray steps
+ * keeps the inspect payload small.
  */
-export function turnStepIssues(events) {
-  const hits = turnStepImbalances(events);
+export function turnStepIssuesFrom(hits) {
   const issues = [];
   for (const code of TURN_STEP_CODES) {
     const group = hits.filter((hit) => hit.code === code);

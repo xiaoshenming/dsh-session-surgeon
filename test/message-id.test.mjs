@@ -31,6 +31,8 @@ const EVENTS = [
     seq: 2,
     time: 3,
     data: {
+      turn: 1,
+      step: 1,
       message: {
         role: "assistant",
         source: { kind: "model", model: "test", provider: "test" },

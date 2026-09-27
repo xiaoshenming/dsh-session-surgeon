@@ -58,7 +58,7 @@ export function presetExtraMemberHits(events) {
   return hits;
 }
 
-/** B: subagent/descriptor data.version other than 3 on a v0 artifact (#6151). */
+/** B: subagent/descriptor data.version other than 3 on a v0 artifact (#6151/#7995). */
 export function descriptorVersionHits(events) {
   const hits = [];
   if (!Array.isArray(events)) return hits;
@@ -66,7 +66,6 @@ export function descriptorVersionHits(events) {
     if (event?.type !== "subagent/descriptor") continue;
     const data = record(event.data);
     if (!data || data.version === 3) continue;
-    if (!Number.isSafeInteger(data.version)) continue;
     hits.push({ seq: event.seq, version: data.version });
   }
   return hits;
@@ -169,7 +168,7 @@ const MESSAGES = {
   "v0-preset-extra-member":
     "permission/preset data carries members outside the released v0 inventory — the 0.1.5 v0→v1 converter refuses the session (#6189); repair keeps only the preset member",
   "v0-descriptor-version":
-    "subagent/descriptor data.version is not 3 — the converter refuses v0 artifacts with another descriptor version (#6151); repair sets version 3 (same member shape)",
+    "subagent/descriptor data.version is not 3 — the converter refuses v0 artifacts with another descriptor version (#6151), and a missing or non-integer version as `version must be a non-negative safe integer` (#7995); repair sets version 3 (same member shape)",
   "v0-plugin-source-form":
     "plugin message source pairs summary/sections with the wrong form — the converter refuses (#6194); repair adds the matching form or drops the display-only member",
   "v0-chunk-provenance":
