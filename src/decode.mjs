@@ -10,6 +10,7 @@ import { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 import { flatReplayStateHits } from "./replay-state.mjs";
 import { MIGRATES_V0_ON_LOAD, migrationRefusalIssues } from "./migrate.mjs";
 import { missingMemberHits } from "./released-shape.mjs";
+import { settlementShapeHits } from "./settlement.mjs";
 import { literalPluginSourceHits } from "./message-shapes.mjs";
 import { turnStepImbalances, turnStepIssuesFrom } from "./turn-step.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
@@ -34,6 +35,7 @@ const HEALTH_RANK = [
   "v0-retired-source-kind",
   "v0-inbox-inserted-message",
   "v0-missing-member",
+  "invalid-settlement-fields",
   "v4-literal-plugin-source",
   "turn-end-while-step-open",
   "step-after-turn-end",
@@ -327,6 +329,23 @@ export function decodeSessionBuffer(buf) {
       });
     }
   }
+  const settlementHits =
+    typeof fileVersion === "number" && fileVersion >= 1 ? settlementShapeHits(finished.events) : [];
+  if (settlementHits.length > 0) {
+    health = worse(health, "invalid-settlement-fields");
+    if (!issues.some((i) => i.code === "invalid-settlement-fields")) {
+      const rows = settlementHits.slice(0, 12);
+      issues.push({
+        code: "invalid-settlement-fields",
+        message:
+          "assistant settlement fields are invalid at seq " +
+          rows.map((hit) => `${hit.seq} (${hit.type}: ${hit.members.join(", ")})`).join(", ") +
+          " — the seed/restore gate requires turn/step to be non-negative safe integers and stream to be an array, and refuses the whole session over one such row (\"seed assistant/message at index N has invalid settlement fields\", #8084); stream carries the streamed blocks and is not recoverable from the artifact, so repair only reports",
+        seqs: settlementHits.map((hit) => hit.seq),
+        settlement: rows.map((hit) => `${hit.type}:${hit.members.join("+")}`),
+      });
+    }
+  }
   const turnStepHits = turnStepImbalances(finished.events);
   for (const issue of turnStepIssuesFrom(turnStepHits)) {
     if (MIGRATES_V0_ON_LOAD) health = worse(health, issue.code);
@@ -376,6 +395,7 @@ export function decodeSessionBuffer(buf) {
     overflowEvents: (finished.overflow ?? []).length,
     turnStepImbalances: turnStepHits,
     missingMembers,
+    settlementHits,
     health,
   };
 }

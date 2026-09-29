@@ -63,6 +63,7 @@ export async function inspectEntry(entry) {
   const turnStep = decoded.turnStepImbalances;
   for (const hit of turnStep) if (!flags.includes(hit.code)) flags.push(hit.code);
   if (decoded.missingMembers.length) flags.push("v0-missing-member");
+  if (decoded.settlementHits.length) flags.push("invalid-settlement-fields");
   const emptyIds = emptyToolCallIds(decoded.events);
   if (emptyIds.length) flags.push("empty-tool-call-id");
   const duplicateIds = duplicateAdvertisedToolCallIds(decoded.events);
@@ -102,6 +103,7 @@ export async function inspectEntry(entry) {
     danglingToolCalls: dangling,
     turnStepImbalances: turnStep,
     missingMembers: decoded.missingMembers,
+    settlementHits: decoded.settlementHits,
     emptyToolCallIds: emptyIds,
   };
 }
