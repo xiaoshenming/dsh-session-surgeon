@@ -1,9 +1,11 @@
 window.__ModuleLoader__.load({
   id: "dsh-session-surgeon",
-  factory: () => {
+  factory: (require) => {
     const API = "/api/session-surgeon";
     const ACTIVE = "data-dsh-surgeon-active";
     const EVENT = "dsh-panel-activate";
+    const PANEL_ID = "session-surgeon";
+    const PANEL_ORDER = -10;
     // dsh-i18n local patch: UI copy now follows the app locale (zh / en / nl).
     // Texts are looked up through T()/H() below; the module subscribes to the
     // locale service and re-renders live on switch.
@@ -14,6 +16,7 @@ window.__ModuleLoader__.load({
           "panel.sub": "点一条就能看对话。有 session- 前缀和没有前缀是同一种文件，不是两种会话。",
           "scan": "刷新列表",
           "close": "关闭",
+          "page.back": "返回会话",
           "pickHint": "点左边一条看对话。每个工作区各自存一套会话；有 session- 前缀和没有前缀只是新旧 ID 写法不同。",
           "repairHint": "只有打不开时，才需要「先看会改什么 / 修好」。",
           "emptyScan": "还没有扫描结果",
@@ -70,7 +73,7 @@ window.__ModuleLoader__.load({
           "hint.default": "把右侧技术细节发给我。",
           "settings.title": "Session surgeon / 会话医生",
           "settings.description": "点开一条看对话；会话打不开时再检查和修好磁盘文件。",
-          "settings.body": "会话医生：有 session- 前缀和没有前缀是同一种会话。\n最常用：会话 ⋯ → 复制会话 ID。\nAgent tools: session_scan / session_inspect / session_repair (apply defaults to false)."
+          "settings.body": "会话医生：有 session- 前缀和没有前缀是同一种会话。\n最常用：会话 ⋯ → 复制会话 ID。\n安装 / 更新：DSH 桌面端「插件」页添加或更新 github:xiaoshenming/dsh-session-surgeon#main，不用重启。\nAgent tools: session_scan / session_inspect / session_repair (apply defaults to false)."
         },
         h: {
           "ok": ["正常", "文件完好，日常聊天不用动。"],
@@ -111,6 +114,7 @@ window.__ModuleLoader__.load({
           "panel.sub": "Click a session to read the conversation. Files with and without the session- prefix are the same kind of file, not two kinds of sessions.",
           "scan": "Refresh list",
           "close": "Close",
+          "page.back": "Back to chat",
           "pickHint": "Click a session on the left to read it. Each workspace keeps its own set of sessions; with or without the session- prefix is just an old/new ID spelling.",
           "repairHint": "Only when a session will not open do you need the “preview repair / repair” actions.",
           "emptyScan": "Nothing scanned yet",
@@ -167,7 +171,7 @@ window.__ModuleLoader__.load({
           "hint.default": "Send me the technical details on the right.",
           "settings.title": "Session surgeon / 会话医生",
           "settings.description": "Click a session to read it; check and repair disk files when a session will not open.",
-          "settings.body": "Session surgeon: files with and without the session- prefix are the same kind of session.\nMost used: session ⋯ → Copy session ID.\nAgent tools: session_scan / session_inspect / session_repair (apply defaults to false)."
+          "settings.body": "Session surgeon: files with and without the session- prefix are the same kind of session.\nMost used: session ⋯ → Copy session ID.\nInstall / update: on DSH Desktop the Plugins page adds or updates github:xiaoshenming/dsh-session-surgeon#main; no restart needed.\nAgent tools: session_scan / session_inspect / session_repair (apply defaults to false)."
         },
         h: {
           "ok": ["OK", "File is intact; daily chat needs no action."],
@@ -208,6 +212,7 @@ window.__ModuleLoader__.load({
           "panel.sub": "Klik op een sessie om het gesprek te lezen. Bestanden met en zonder het session- voorvoegsel zijn hetzelfde soort bestand, niet twee soorten sessies.",
           "scan": "Lijst vernieuwen",
           "close": "Sluiten",
+          "page.back": "Terug naar gesprek",
           "pickHint": "Klik links op een sessie om hem te lezen. Elke werkruimte heeft zijn eigen set sessies; met of zonder het session- voorvoegsel is alleen een oud/nieuw-ID-schrijfwijze.",
           "repairHint": "Alleen als een sessie niet opent, heb je de acties “wijzigingen bekijken / repareren” nodig.",
           "emptyScan": "Nog niets gescand",
@@ -264,7 +269,7 @@ window.__ModuleLoader__.load({
           "hint.default": "Stuur mij de technische details rechts.",
           "settings.title": "Session surgeon / 会话医生",
           "settings.description": "Klik op een sessie om hem te lezen; controleer en repareer schijfbestanden als een sessie niet opent.",
-          "settings.body": "Sessie-chirurg: bestanden met en zonder session- voorvoegsel zijn hetzelfde soort sessie.\nMeest gebruikt: sessie ⋯ → Sessie-ID kopiëren.\nAgenttools: session_scan / session_inspect / session_repair (apply defaults to false)."
+          "settings.body": "Sessie-chirurg: bestanden met en zonder session- voorvoegsel zijn hetzelfde soort sessie.\nMeest gebruikt: sessie ⋯ → Sessie-ID kopiëren.\nInstalleren / bijwerken: op DSH Desktop doet de Plug-ins-pagina dat met github:xiaoshenming/dsh-session-surgeon#main; herstarten niet nodig.\nAgenttools: session_scan / session_inspect / session_repair (apply defaults to false)."
         },
         h: {
           "ok": ["OK", "Bestand is intact; voor dagelijks chatten is niets nodig."],
@@ -446,37 +451,46 @@ window.__ModuleLoader__.load({
       const qs = query.toString();
       return API + path + (qs ? "?" + qs : "");
     }
-    function mountPanel(controller, ctx) {
-      let container;
-      const state = { rows: [], selected: "", detail: "", raw: "", busy: false, scanned: false, chat: null, titles: {}, root: "", roots: [], scanError: "", rootNote: "" };
+    /**
+     * The panel body. One instance serves both mounts — the shell's
+     * center-column page (the native seat) and the legacy full-screen overlay —
+     * so a scan or an open conversation survives switching panels.
+     */
+    function createPanel(controller, ctx) {
+      const state = { rows: [], selected: "", detail: "", raw: "", busy: false, scanned: false, chat: null, titles: {}, root: "", roots: [], scanError: "", rootNote: "", mode: "overlay" };
+      const shell = document.createElement("div");
+      shell.className = "ss-shell";
+      let pending;
+      const layoutOf = () => { try { return ctx?.layout ?? (typeof ctx?.get === "function" ? ctx.get("layout") : undefined); } catch { return undefined; } };
       const selectedRow = () => state.rows.find((r) => sessionIdOf(r) === state.selected);
-        const listHtml = () => {
-          const groups = new Map();
-          for (const row of state.rows) { const key = workspaceOf(row); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row); }
-          const rootLine = state.root ? '<div class="ss-root">' + T("scanRoot") + " " + esc(state.root) + " · " + state.rows.length + (state.rootNote ? " — " + esc(state.rootNote) : "") + "</div>" : "";
-          const empty = '<div class="ss-note">' + T("emptyScan")
-            + (state.root ? "<br>" + T("scanRoot") + " " + esc(state.root) : "")
-            + (state.scanError ? "<br>" + T("explain.error") + esc(state.scanError) : "<br>" + T("emptyHint"))
-            + "</div>";
-          return rootLine + ([...groups].flatMap(([name, rows]) => ['<div class="ss-group">' + esc(name) + " · " + rows.length + "</div>", ...rows.map((row) => { const id = sessionIdOf(row); const h = healthOf(row); return '<div class="ss-row" data-id="' + id + '"' + (id === state.selected ? " data-on" : "") + '><span class="ss-id"><span class="ss-title">' + esc(state.titles[id] || id.replace(/^session-/, "")) + '</span><span class="ss-sid">' + esc(id) + '</span></span><span class="ss-badge' + (isBad(h) ? " bad" : "") + '">' + esc(labelOf(h)) + "</span></div>"; })]).join("") || empty);
-        };
-        const chatHtml = () => {
-          const chat = state.chat;
-          if (!state.selected) return "";
-          if (!chat) return '<div class="ss-note">' + T("loadingChat") + "</div>";
-          if (chat.error) return '<div class="ss-note">' + T("chatFail") + esc(chat.error) + "</div>";
-          if (!chat.messages?.length) return '<div class="ss-note">' + T("chatEmpty") + "</div>";
-          return '<div class="ss-chat">' + (chat.omitted ? '<div class="ss-note">' + T("omitted", { n: chat.omitted }) + "</div>" : "") + chat.messages.map((m) => '<div class="ss-msg ' + m.role + '"><div class="ss-who">' + (m.role === "user" ? T("whoUser") : T("whoAssistant")) + '</div><div class="ss-bubble">' + esc(m.text) + "</div></div>").join("") + "</div>";
-        };
+      const listHtml = () => {
+        const groups = new Map();
+        for (const row of state.rows) { const key = workspaceOf(row); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row); }
+        const rootLine = state.root ? '<div class="ss-root">' + T("scanRoot") + " " + esc(state.root) + " · " + state.rows.length + (state.rootNote ? " — " + esc(state.rootNote) : "") + "</div>" : "";
+        const rows = [...groups].flatMap(([name, rows]) => ['<div class="ss-group">' + esc(name) + " · " + rows.length + "</div>", ...rows.map((row) => { const id = sessionIdOf(row); const h = healthOf(row); return '<div class="ss-row" data-id="' + id + '"' + (id === state.selected ? " data-on" : "") + '><span class="ss-id"><span class="ss-title">' + esc(state.titles[id] || id.replace(/^session-/, "")) + '</span><span class="ss-sid">' + esc(id) + '</span></span><span class="ss-badge' + (isBad(h) ? " bad" : "") + '">' + esc(labelOf(h)) + "</span></div>"; })]);
+        const empty = '<div class="ss-note">' + T("emptyScan")
+          + (state.root ? "<br>" + T("scanRoot") + " " + esc(state.root) : "")
+          + (state.scanError ? "<br>" + T("explain.error") + esc(state.scanError) : "<br>" + T("emptyHint"))
+          + "</div>";
+        return rootLine + (rows.join("") || empty);
+      };
+      const chatHtml = () => {
+        const chat = state.chat;
+        if (!state.selected) return "";
+        if (!chat) return '<div class="ss-note">' + T("loadingChat") + "</div>";
+        if (chat.error) return '<div class="ss-note">' + T("chatFail") + esc(chat.error) + "</div>";
+        if (!chat.messages?.length) return '<div class="ss-note">' + T("chatEmpty") + "</div>";
+        return '<div class="ss-chat">' + (chat.omitted ? '<div class="ss-note">' + T("omitted", { n: chat.omitted }) + "</div>" : "") + chat.messages.map((m) => '<div class="ss-msg ' + m.role + '"><div class="ss-who">' + (m.role === "user" ? T("whoUser") : T("whoAssistant")) + '</div><div class="ss-bubble">' + esc(m.text) + "</div></div>").join("") + "</div>";
+      };
       const render = () => {
-        if (!container) return;
         const selected = selectedRow();
         const health = selected ? healthOf(selected) : "";
         const main = selected
-          ? '<div class="ss-note"><b>' + esc(state.chat?.title || labelOf(health)) + "</b> — " + esc(hintOf(health)) + (state.chat?.cwd ? "<br>" + T("cwd") + esc(state.chat.cwd) : "") + "</div>"
+          ? '<div class="ss-dhead"><span class="ss-dtitle">' + esc(state.selected) + '</span><span class="ss-badge' + (isBad(health) ? " bad" : "") + '">' + esc(labelOf(health)) + "</span></div>"
+            + '<p class="ss-note">' + esc(hintOf(health)) + (state.chat?.cwd ? "<br>" + T("cwd") + esc(state.chat.cwd) : "") + "</p>"
             + '<div class="ss-idbox"><span>' + esc(state.selected) + '</span><button type="button" class="ss-btn primary" data-act="copy">' + T("copyIdBtn") + "</button></div>"
             + '<div class="ss-actions"><button type="button" class="ss-btn" data-act="inspect">' + T("actInspect") + '</button><button type="button" class="ss-btn" data-act="repair">' + T("actRepair") + '</button><button type="button" class="ss-btn danger" data-act="repair-apply">' + T("actApply") + '</button><button type="button" class="ss-btn" data-act="export">' + T("actExport") + "</button></div>"
-            + '<div class="ss-note">' + (state.busy ? T("busy") : esc(state.detail || T("detailDefault"))) + "</div>"
+            + '<p class="ss-note">' + (state.busy ? T("busy") : esc(state.detail || T("detailDefault"))) + "</p>"
             + chatHtml()
             + '<details><summary>' + T("tech") + "</summary><pre>" + esc(state.raw || T("techEmpty")) + "</pre></details>"
           : '<div class="ss-note">' + T("pickHint") + "<br><br>" + T("repairHint") + "</div>";
@@ -485,7 +499,9 @@ window.__ModuleLoader__.load({
             + state.roots.map((c) => '<option value="' + esc(c.root) + '"' + (c.root === state.root ? " selected" : "") + '>' + esc(c.label) + " · " + (c.exists === false ? T("rootMissing") : c.sessions + " " + T("sessionUnit")) + " · " + esc(c.root) + "</option>").join("")
             + '<option value="__other__">' + T("rootOther") + "</option></select>"
           : "";
-        container.innerHTML = '<div class="ss-shell"><div class="ss-head"><div><h1>' + T("panel.title") + '</h1><p class="ss-sub">' + T("panel.sub") + '</p></div><div class="ss-actions">' + rootPicker + '<button type="button" class="ss-btn" data-act="scan">' + T("scan") + '</button><button type="button" class="ss-btn" data-act="close">' + T("close") + "</button></div></div><div class=\"ss-body\"><div class=\"ss-list\">" + listHtml() + '</div><div class="ss-main">' + main + "</div></div></div>";
+        const closeLabel = state.mode === "page" ? T("page.back") : T("close");
+        shell.innerHTML = '<div class="ss-head"><div class="ss-titles"><h1>' + T("panel.title") + '</h1><p class="ss-sub">' + T("panel.sub") + '</p></div><div class="ss-headacts">' + rootPicker + '<button type="button" class="ss-btn" data-act="scan">' + T("scan") + '</button><button type="button" class="ss-btn" data-act="close">' + closeLabel + "</button></div></div>"
+          + '<div class="ss-body"><div class="ss-list">' + listHtml() + '</div><div class="ss-main">' + main + "</div></div>";
       };
       const run = async (label, fn) => {
         if (state.busy) return;
@@ -575,7 +591,10 @@ window.__ModuleLoader__.load({
         const act = event.target?.closest?.("[data-act]")?.getAttribute("data-act");
         const row = event.target?.closest?.("[data-id]");
         if (row?.dataset.id && !act) loadChat(row.dataset.id);
-        if (act === "close") controller.close();
+        if (act === "close") {
+          if (state.mode === "page") { try { layoutOf()?.selectPanel?.(null); } catch { /* older shell */ } }
+          else controller.close();
+        }
         if (act === "scan") scan();
         if (act === "inspect") {
           if (!state.selected) return toast(T("toast.pickFirst"));
@@ -605,38 +624,130 @@ window.__ModuleLoader__.load({
           });
         }
       };
-      const ensure = () => {
-        if (container?.isConnected) return;
-        container = document.createElement("div");
-        container.dataset.dshSurgeonView = "";
-        container.addEventListener("click", onClick);
-        container.addEventListener("change", onChange);
-        document.body.appendChild(container);
+      shell.addEventListener("click", onClick);
+      shell.addEventListener("change", onChange);
+      const onLocaleTick = () => { if (shell.isConnected) render(); };
+      REFRESHERS.add(onLocaleTick);
+      const attach = (host, mode) => {
+        state.mode = mode;
+        if (shell.parentElement !== host) host.replaceChildren(shell);
         render();
       };
+      const show = (id, act) => {
+        if (!shell.isConnected) { pending = { id, act }; return; }
+        loadChat(id);
+        if (act === "repair") run(T("busyRepairPreview"), () => api(API + "/repair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, apply: false, root: state.root }) }));
+      };
+      const activate = () => {
+        render();
+        if (pending) { const next = pending; pending = undefined; show(next.id, next.act); }
+        if (!state.scanned && !state.busy) { if (state.roots.length === 0) loadRoots(); else scan(); }
+      };
+      return {
+        shell,
+        attach,
+        show,
+        activate,
+        render,
+        detach() { shell.remove(); },
+        dispose() { REFRESHERS.delete(onLocaleTick); shell.remove(); },
+      };
+    }
+    /**
+     * Legacy mount: the plugin owns a sidebar button and a full-screen overlay
+     * for shells that declare no `sidebar.panellist` / `main` seats.
+     */
+    function mountOverlay(controller, panel) {
+      const host = document.createElement("div");
+      host.dataset.dshSurgeonView = "";
+      document.body.appendChild(host);
+      panel.attach(host, "overlay");
       const applyActive = () => {
         if (controller.getSnapshot().panelOpen) {
           document.documentElement.setAttribute(ACTIVE, "");
           document.dispatchEvent(new CustomEvent(EVENT, { detail: "session-surgeon" }));
-          ensure();
-          if (!state.scanned && !state.busy) { if (state.roots.length === 0) loadRoots(); else scan(); }
+          panel.activate();
         } else document.documentElement.removeAttribute(ACTIVE);
       };
       const unsub = controller.subscribe(applyActive);
-      const onLocaleTick = () => { if (container?.isConnected) render(); };
-      REFRESHERS.add(onLocaleTick);
       const onActivate = (event) => { if (event.detail !== "session-surgeon") controller.close(); };
       const onOpen = (event) => {
         const id = event.detail?.id;
         if (!id) return;
         controller.open();
-        loadChat(id);
-        if (event.detail?.act === "repair") run(T("busyRepairPreview"), () => api(API + "/repair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, apply: false, root: state.root }) }));
+        panel.show(id, event.detail?.act === "repair" ? "repair" : undefined);
       };
       document.addEventListener(EVENT, onActivate);
       document.addEventListener("dsh-surgeon-open", onOpen);
       applyActive();
-      return () => { REFRESHERS.delete(onLocaleTick); unsub(); document.removeEventListener(EVENT, onActivate); document.removeEventListener("dsh-surgeon-open", onOpen); document.documentElement.removeAttribute(ACTIVE); container?.remove(); };
+      return () => { panel.detach(); unsub(); document.removeEventListener(EVENT, onActivate); document.removeEventListener("dsh-surgeon-open", onOpen); document.documentElement.removeAttribute(ACTIVE); host.remove(); };
+    }
+    /**
+     * Native mount: contribute a row to the shell's own sidebar panel list and
+     * the page to the layout's keyed `main` seat, so the shell owns the row box,
+     * its label, the active highlight and the collapsed rail — the same
+     * container the shipped Plugins page uses. Both registrations go through
+     * `slots.inject`, so load order against the shell does not matter.
+     * @returns disposer, or null when the shell has no slot registry.
+     */
+    function mountNativePanel(ctx, panel, require) {
+      // A context without the service may resolve (or throw) either way, and a
+      // shell that has no slot registry at all must keep the overlay path.
+      let slots;
+      try { slots = ctx?.slots; } catch { slots = undefined; }
+      if (!slots && typeof ctx?.get === "function") {
+        try { slots = ctx.get("slots"); } catch { slots = undefined; }
+      }
+      if (!slots || typeof slots.inject !== "function" || typeof slots.register !== "function" || typeof require !== "function") return null;
+      let React;
+      try { React = require("react"); } catch { return null; }
+      if (!React || typeof React.createElement !== "function" || typeof React.useEffect !== "function") return null;
+      const createElement = React.createElement;
+      const layoutOf = () => { try { return ctx?.layout ?? (typeof ctx?.get === "function" ? ctx.get("layout") : undefined); } catch { return undefined; } };
+      const Glyph = function SessionSurgeonGlyph(props) {
+        const size = props?.size ?? 16;
+        return createElement("svg", {
+          viewBox: "0 0 16 16", width: size, height: size, fill: "none", stroke: "currentColor",
+          strokeWidth: 1.3, strokeLinecap: "round", strokeLinejoin: "round",
+          "aria-hidden": "true", "data-dsh-panel-entry": PANEL_ID,
+        },
+          createElement("path", { d: "M2.2 3.2h11.6v7.1H7.1L4 12.9v-2.6H2.2z" }),
+          createElement("path", { d: "M8 5.1v3.3M6.35 6.75h3.3" }),
+        );
+      };
+      const Page = function SessionSurgeonPage() {
+        const hostRef = React.useRef(null);
+        React.useEffect(() => {
+          const host = hostRef.current;
+          if (!host) return undefined;
+          panel.attach(host, "page");
+          panel.activate();
+          return () => panel.detach();
+        }, []);
+        return createElement("div", { className: "ss-page", "data-dsh-surgeon-page": "", ref: hostRef });
+      };
+      const disposers = [];
+      const seat = (name, options, component) => {
+        try {
+          disposers.push(slots.inject(name, () => {
+            // The seat owner runs this callback; a refusal here must not break
+            // its declaration pass, so it is contained and only logged.
+            try { return slots.register(options, component); } catch (error) { console.warn("[dsh-session-surgeon] panel seat " + name + " refused:", error); return () => {}; }
+          }));
+        } catch (error) {
+          console.warn("[dsh-session-surgeon] panel seat " + name + " unavailable:", error);
+        }
+      };
+      seat("sidebar.panellist", { name: "sidebar.panellist", id: PANEL_ID, order: PANEL_ORDER, label: () => T("sidebar.aria") }, Glyph);
+      seat("main", { name: "main", key: PANEL_ID, inject: () => ({}) }, Page);
+      const onOpen = (event) => {
+        const id = event.detail?.id;
+        if (!id) return;
+        panel.show(id, event.detail?.act === "repair" ? "repair" : undefined);
+        try { layoutOf()?.selectPanel?.(PANEL_ID); } catch (error) { console.warn("[dsh-session-surgeon] panel switch failed:", error); }
+      };
+      document.addEventListener("dsh-surgeon-open", onOpen);
+      return () => { document.removeEventListener("dsh-surgeon-open", onOpen); for (const d of disposers) { try { d(); } catch { /* ignore */ } } };
     }
     function mountMenu(controller, ctx) {
       let lastRow;
@@ -685,7 +796,14 @@ window.__ModuleLoader__.load({
         }
         ensureCss();
         const controller = createController();
-        disposers.push(mountSidebar(controller, refreshLabels), mountPanel(controller, ctx), mountMenu(controller, ctx));
+        const panel = createPanel(controller, ctx);
+        disposers.push(panel.dispose);
+        // Native seat first: the shell then owns the sidebar row and the center
+        // column, exactly as it does for the shipped Plugins and Schedule pages.
+        const native = mountNativePanel(ctx, panel, require);
+        if (native) disposers.push(native);
+        else disposers.push(mountOverlay(controller, panel), mountSidebar(controller, refreshLabels));
+        disposers.push(mountMenu(controller, ctx));
         ctx?.effect?.(() => () => { for (const d of disposers) d(); }, "session-surgeon: ui");
       } catch (error) {
         console.warn("[dsh-session-surgeon] mount failed:", error);

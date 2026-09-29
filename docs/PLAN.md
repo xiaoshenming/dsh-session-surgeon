@@ -233,3 +233,6 @@ M2 完成时：
 | [SESSION-FORMAT.md](./SESSION-FORMAT.md) | 磁盘布局、zstd 帧、header、packed 行、官方何时拒载 |
 | [REPAIR-SPEC.md](./REPAIR-SPEC.md) | 修复步骤如何对齐官方 loader |
 | [LEARNING-TASKS.md](./LEARNING-TASKS.md) | 为什么没有 Codex task id，怎么让 DSH 学会一个任务 |
+| [IMPLEMENTATION-CONTRACT.md](./IMPLEMENTATION-CONTRACT.md) | 多 agent 分工、模块边界、CLI/路由/工具接口契约 |
+| [../skills/dsh-session-surgeon-update/SKILL.md](../skills/dsh-session-surgeon-update/SKILL.md) | 「更新 / 更新插件」怎么跑：扫社区 → 改测 → 回复 → 推送，以及桌面端的安装与更新位置 |
+| [../CHANGELOG.md](../CHANGELOG.md) | 用户可见变化，逐条链到 Discussion / Issue 编号 |

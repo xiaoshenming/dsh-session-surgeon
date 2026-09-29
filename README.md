@@ -31,16 +31,26 @@ The ID is the durable handle (with or without the `session-` prefix — same ses
 
 ## Install
 
-One command, same as other DSH plugins:
+**DSH Desktop** (the app this repo is developed against since 2026-09-29): open the **Plugins** page and add the upstream git package `github:xiaoshenming/dsh-session-surgeon#main`. The profile lives in `~/.dsh/profiles/desktop`, and pnpm resolves `#main` to a commit tarball there. The Desktop shell (bundled `@deepseek-ai/dsh-web-frontend@0.2.0-rc.2`) is what serves the `sidebar.panellist` / `main` seats this plugin registers into, so 会话医生 is a real sidebar row and a real center-column page — the same container the shipped Plugins page uses — rather than a DOM overlay.
+
+The same install from a CLI profile:
 
 ```bash
-dsh plugin --profile web add "github:xiaoshenming/dsh-session-surgeon#main"
+dsh plugin --profile desktop add "github:xiaoshenming/dsh-session-surgeon#main"
 ```
 
-Restart `dsh web`. Then:
+Then:
 
 - Session ⋯ menu: **复制会话 ID** (the everyday action) / inspect / dry-run repair
 - Sidebar **会话医生 / Session surgeon**: browse conversations, copy id, dry-run repair, apply repair, compact preview, export JSONL
+
+**Updating** is the Plugins page's update action for this plugin (pnpm re-resolves `#main` to the new commit), or from the profile:
+
+```bash
+cd ~/.dsh/profiles/desktop && pnpm update dsh-session-surgeon
+```
+
+No `dsh web` restart and no re-`add` — the installed copy is a plain pnpm checkout without a `.git` of its own, so push to `main` first and update after.
 
 For local development, use the pinned dsh version and pnpm lockfile (Node.js 24):
 
@@ -54,6 +64,14 @@ export DSH_HOME="$HOME/.dsh-surgeon-dev"
 `DSH_HOME` keeps development sessions separate; the panel/CLI follow it (`$DSH_SESSION_ROOT` → `$DSH_HOME/sessions` → `~/.dsh/sessions`) and the panel's *session root* picker lists every DSH home it can find on the machine (by home shape, plus any path you type), so sessions in the other home are one click away. Avoid reinstalling this checkout with npm: duplicate physical copies of `@deepseek-ai/dsh-tools` can make tool calls fail with `reading 'prepare'`.
 
 In an agent chat that has this checkout (or the installed plugin skills), **更新 / 更新插件** is enough: scan official Discussions, absorb in-scope repair feedback, changelog, reply, push `main` via `px` (`127.0.0.1:7897`). See [skills/dsh-session-surgeon-update/SKILL.md](./skills/dsh-session-surgeon-update/SKILL.md). If the agent's skill catalog does not list it, have it read that file directly — the workflow is plain markdown and needs no registration.
+
+DSH's skill index reads `<project>/.dsh/skills`, `<project>/.agents/skills`, `$DSH_HOME/skills` and `~/.agents/skills` — **not** the `skills/` directory inside an installed plugin. To have the Desktop catalog list this skill, link it into the user root (the link follows every plugin update):
+
+```bash
+mkdir -p ~/.dsh/skills
+ln -sfn ~/.dsh/profiles/desktop/node_modules/dsh-session-surgeon/skills/dsh-session-surgeon-update \
+        ~/.dsh/skills/dsh-session-surgeon-update
+```
 
 ## Also: repair unloadable sessions
 

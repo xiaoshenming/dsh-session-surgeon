@@ -7,12 +7,16 @@ description: |
 # 更新插件 — dsh-session-surgeon 自我迭代
 
 加载方式：DSH 技能目录里有就直接 `skill`；没列出（或报 unknown）就让 agent 直接 `read skills/dsh-session-surgeon-update/SKILL.md` —— 本仓库的更新流程就是这么跑通的，纯 markdown，不需要注册。
+**桌面端的技能索引不扫已装插件的包内目录**：`@deepseek-ai/dsh-skill-filesystem` 只认 `<project>/.dsh/skills`、`<project>/.agents/skills`、`customSkillDirs`、`$DSH_HOME/skills`（本机 `~/.dsh/skills`）、`~/.agents/skills` 和 `DSH_BUNDLED_SKILL_DIR`。所以桌面端要"被索引到"有两条路：① 让 agent 直接读装好的那份 `~/.dsh/profiles/desktop/node_modules/dsh-session-surgeon/skills/dsh-session-surgeon-update/SKILL.md`；② 把它链进用户技能根（更新后自动跟随，不用重拷）：
+`ln -sfn ~/.dsh/profiles/desktop/node_modules/dsh-session-surgeon/skills/dsh-session-surgeon-update ~/.dsh/skills/dsh-session-surgeon-update`
 
 用户只说「更新」或「更新插件」时，不要再问流程。加载本技能后直接执行：扫社区 → 判断该不该改代码 → 改 / 测 / 写 CHANGELOG → 对口回复 → 用 px 推 `origin/main` → 用中文汇报。
 
 仓库：当前 checkout（本机 `/Users/ming/data/project/dsh/dsh-session-surgeon`；技能里出现的 `/home/ming/...` 是旧机器路径，不要照抄）
 远程：`xiaoshenming/dsh-session-surgeon` `main`
-安装：`dsh plugin --profile web add "github:xiaoshenming/dsh-session-surgeon#main"`
+安装 / 更新（用户 2026-09-29 起改用 **DSH Desktop**）：profiles 在 `~/.dsh/profiles/desktop`，`package.json` 里是 `dsh-session-surgeon: github:xiaoshenming/dsh-session-surgeon#main`，装出来的是一份**没有 `.git` 的拷贝**（`node_modules/dsh-session-surgeon`，pnpm 从 `codeload.github.com/.../tar.gz/<commit>` 解出来的）。
+→ 所以「用户侧更新」＝**桌面端「插件」页对本插件点更新**（官方 in-process manager 走 pnpm 重新解析 `#main` 到新 commit），或在 profile 目录里 `pnpm update dsh-session-surgeon`；**不需要重启 `dsh web`，也不需要再 add 一次**。agent 侧只负责推到 `origin/main` 并让 CI 绿。
+本地开发仍是 `~/.dsh-surgeon-dev` + `link:` + 重启 `dsh web`（见 README「本地开发」）。
 
 默认简体中文。危险操作用 `danger-full-access`。PTC 模式只从 `run_code` 调工具。
 
@@ -116,6 +120,7 @@ env -u NODE_PATH PATH="/usr/bin:/bin:$NODEBIN" "$NODEBIN/node" --test test/*.tes
 - 全绿；无 TODO/FIXME；无 secrets；零 runtime deps
 - 新模块保持小；`src/decode.mjs` 等核心文件尽量 ≤300 行
 - GUI 文案：`plugin/client.js` 的 HEALTH 映射要覆盖新 health code（zh/en/nl 三份）
+- **GUI 结构跟主体对齐（2026-09-29 起）**：侧边栏行 + 中栏页面走壳的原生座位（`ctx.slots.inject("sidebar.panellist")` 注册行、`inject("main")` 注册页面，`ctx.layout.selectPanel(id|null)` 切页），别再 DOM 注入侧边栏/整屏浮层——没有 seats 的老壳才退回 `mountOverlay`。样式只用 `--dsw-*` token（`plugin/ui.css` 里不允许硬编码颜色），`node --test test/ui.test.mjs` 会断言这两件事
 - 新形状的探测**只认能无损修的子集**：成员超出 released 形状的一律只报告、不猜
 - 不扩 scope 到 compact 插入 `compaction/summary`、编假 callId、改官方菜单
 
@@ -158,7 +163,7 @@ CI 红必须当轮修掉再推一次（测试分叉是常见原因，见第 3 �
 - 吸收了什么（commit SHA + 测试）
 - 回复了哪些链接
 - 故意没改什么
-- 本地 `link:` 要重启 `dsh web`；`github:…#main` 要再 add 一次
+- 推出去了以后用户怎么更新：**桌面端「插件」页 → 本插件 → 更新**（等价于 `cd ~/.dsh/profiles/desktop && pnpm update dsh-session-surgeon`，会重新解析 `github:…#main` 到新 commit）；本地 `link:` 的 dev 环境才需要重启 `dsh web`
 
 把相关 DSH 通知 PATCH 已读（含自己仓库的 ci_activity），命令是 `gh api -X PATCH notifications/threads/<id>`。不要留 `/tmp` 临时文件（回复稿、验证脚本用完删）。目标完成才 `update_goal complete`。
 
@@ -208,11 +213,14 @@ CI 红必须当轮修掉再推一次（测试分叉是常见原因，见第 3 �
 - 推送代理：`127.0.0.1:7897` 实测可用（`px` 就是给它套代理）；`git -c http.version=HTTP/1.1 push` 直接过
 - git 作者：全局 config 是 `xiaoshenming <1181584752@qq.com>`，仓库历史是 `Small明 <11856687+BFSYRGZbfsyrgz@user.noreply.gitee.com>` → 提交时用 `-c` 传仓库作者
 - CI：GitHub Actions 只跑 `node fixtures/synthetic/build.mjs` + `node --test test/*.test.mjs` + secrets 检查，**不装依赖**（所以本机有 node_modules 时测试行为和 CI 可能分叉）
-- 用户 checkout 常是 `link:`；overlay 文案要重启 web 才更新
+- **桌面端（2026-09-29 起用户的主环境）**：`/Applications/DeepSeek Harness.app`（Electron；本地 server 只监听 `127.0.0.1`，根路径要 token 才给，直接 curl 是 401）。它自带 `@deepseek-ai/dsh-web-frontend@0.2.0-rc.2`（比仓库 devDependency 的 0.1.7-rc.2 新一个 minor，但 `SESSION_FORMAT_VERSION` 仍是 4）；前端包和 `dsh-client-ui-*` 都在 `app.asar` 里（`/dsh/node_modules/@deepseek-ai/…`），要看真实样式/座位就从 asar 里解。
+- 桌面端插件装在 `~/.dsh/profiles/desktop/node_modules/dsh-session-surgeon`（pnpm 按 `github:…#main` 解出的一份**没有 `.git` 的拷贝**；profile 的 `pnpm-lock.yaml` 里钉着具体 commit tarball）。**更新**＝插件页点更新，或 `cd ~/.dsh/profiles/desktop && pnpm update dsh-session-surgeon`；**不需要重启 `dsh web`**，也不要在那份拷贝里 `git pull`（它没有 `.git`）。
+- **客户端座位 ABI（0.1.7-rc.2 与 0.2.0-rc.2 都有）**：`ctx.slots.inject('sidebar.panellist', …)` 交一行给壳（`{id, order, label}` + 图标组件，壳自己画行、管高亮/收起），`ctx.slots.inject('main', …)` 交 `{key}` 对应的页面；切换面板用 `ctx.get('layout').selectPanel(id|null)`（`null` 回会话）。原生行要 `data-dsh-panel-entry` 标记（皮肤 L2 契约）。老壳没有 slots 时走 `plugin/client.js` 里的 `mountOverlay` 兜底。
+- 用户 checkout 常是 `link:`（`~/.dsh-surgeon-dev`）；本地改前端要重启 `dsh web` 才刷新。
 - 2026-09-28 版本线：npm `latest`=**0.1.7-rc.2**（2026-09-27 从 `next` 提上来的）、`next`=0.1.7-rc.2（格式 v4，也是本仓库 devDependency 的 pin，见 `package.json`）、`alpha`=0.1.7-alpha.2。**提上 `latest` 不等于闸门消失**：从 0.1.5-rc.2 到 0.1.7-rc.2 三条闸门只有行号位移（`v2-to-v3:125` 照抛、`v0-to-v1:1584` 照拒 `!== 3`、`:278`+`:283` 照把 `user` 写死），所以回帖时**别把「升级到最新版」当解法**。rc.1 / rc.2 上 v0→v1/v2→v3 的闸门都在（descriptor / inserted / SOURCE_KINDS 无 `instruction-hint`），五行的悬空 call 表两版一致；行号以 tarball 为准：`dsh-session-format-v0-to-v1` 的 `subagentDescriptorValue` 声明 `:1289`、`literalValue(data["version"],[3])` 在 `:1290`、`data["version"] !== 3` 在 `:1584`、抛在 `:1586`（同一版本已安装副本与 tarball 字节一致）。升 pin 的方法：改 `package.json` 后 `pnpm install`，`pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 列表会跟着出现整片换行号——那是正常的重装产物，跟着一起提交即可
 - 2026-09-29 版本线（新增）：npm 出现 **`next` = `0.2.0-rc.1`**（新 minor 线，`latest` 仍是 0.1.7-rc.2，`alpha` = 0.1.7-alpha.2）；`@deepseek-ai/dsh-session` / `-format` / `-persistence-jsonl` 都发了 0.2.0-rc.1。**但 `SESSION_FORMAT_VERSION` 在 0.1.7-rc.2 与 0.2.0-rc.1 里都是 4**（两版 `lib/index.js:56`）→ **代际没变**，不需要新的迁移分支；0.2.0 线上那些帖（#8181/#8182/#8183/#8184/#8186/#8187/#8189/#8190）目前都在 v4 的同一套闸门下
 - 格式代际：header v0–v4 都能 inspect/repair；`session.vN.jsonl.zstd` 由官方迁移，surgeon 不改代际
-- 会话根解析：`$DSH_SESSION_ROOT` → `$DSH_HOME/sessions` → `~/.dsh/sessions`；本机两个 home（`~/.dsh-surgeon-dev` 有会话且装了插件，`~/.dsh` 空且没装）
+- 会话根解析：`$DSH_SESSION_ROOT` → `$DSH_HOME/sessions` → `~/.dsh/sessions`；本机两个 home：`~/.dsh`（**桌面端主库**，有会话、profile 里装了本插件）与 `~/.dsh-surgeon-dev`（本地 `link:` 开发库，也有会话和插件）
 - **目录层级**：`listSessionFiles` 要求 `<root>/<project>/<session-dir>/session[.vN].jsonl.zstd` **两层**，直接放 `<root>/<session-dir>/` 会被静默跳过（`scan` 报 `count: 0`）。造 fixture 验证 CLI 时先摆对层级
 - **CLI 参数位置**：`scan [root]` / `inspect <id> [root]` / `repair <id> [root]` —— root 是**位置参数**，没有 `--root`（写成 `--root X` 会被当成路径，报 `cannot read session root --root`）
 - 面板「会话根」下拉：`GET /api/session-surgeon/roots` 按 home 形态自动发现（`profiles`/`.anonymous-user-id`/`.credentials.yaml`/`settings.yaml*` 任一 + `sessions/`），带会话数，支持手输任意路径（`~` 会展开）；所有单会话请求都带 `root`，切根后 inspect/repair/export 才落在正确的库上

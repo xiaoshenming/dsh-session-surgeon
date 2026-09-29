@@ -25,16 +25,26 @@
 
 ## 安装
 
-和其他 DSH 插件一样，一条命令：
+**DSH 桌面端**（2026-09-29 起本仓库的对齐目标）：打开「插件」页，添加 git 包 `github:xiaoshenming/dsh-session-surgeon#main`。profile 在 `~/.dsh/profiles/desktop`，pnpm 会把 `#main` 解析成某个 commit 的 tarball。
+
+CLI 装法等价：
 
 ```bash
-dsh plugin --profile web add "github:xiaoshenming/dsh-session-surgeon#main"
+dsh plugin --profile desktop add "github:xiaoshenming/dsh-session-surgeon#main"
 ```
 
-然后重启 `dsh web`。
+装好后：
 
 - 会话 ⋯ 菜单：**复制会话 ID**（日常就用这个）/ 检查 / 预览修复
 - 左侧「会话医生」：看对话、复制 ID、预览修复、应用修复、导出
+
+**更新**＝在「插件」页对这个插件点更新（pnpm 重新解析 `#main` 到新 commit），或在 profile 里：
+
+```bash
+cd ~/.dsh/profiles/desktop && pnpm update dsh-session-surgeon
+```
+
+不用重启 `dsh web`，也不用重新 add：装出来的是 pnpm 解出的一份普通拷贝，本身没有 `.git`，所以先推到 `main`，再更新。
 
 本地开发请使用项目锁定的 dsh 版本和 pnpm 锁文件（Node.js 24）：
 
@@ -48,6 +58,14 @@ export DSH_HOME="$HOME/.dsh-surgeon-dev"
 `DSH_HOME` 将开发会话与日常会话隔离；面板和 CLI 按 `$DSH_SESSION_ROOT` → `$DSH_HOME/sessions` → `~/.dsh/sessions` 找会话，面板的「会话根」下拉会自动列出机器上所有 DSH home（按 home 形态识别，也可手输任意路径），另一个 home 里的会话一步就能切过去。不要用 npm 重装此开发环境：当前 DSH 的工具调度器依赖单一 `@deepseek-ai/dsh-tools` 模块实例，npm 的重复实体副本可能让工具调用报 `reading 'prepare'`。
 
 在能加载本仓库技能的对话里，说一句 **更新**（或 **更新插件**）即可：扫官方 Discussions、吸收对口反馈、改代码、写 CHANGELOG、回复、用 px 推 `main`。技能正文：[skills/dsh-session-surgeon-update/SKILL.md](./skills/dsh-session-surgeon-update/SKILL.md)。如果 agent 的技能目录里没列出它，就直接让它读这份文件 —— 纯 markdown 流程，不需要注册。
+
+DSH 的技能索引只扫 `<project>/.dsh/skills`、`<project>/.agents/skills`、`$DSH_HOME/skills`、`~/.agents/skills`，**不扫已装插件包内的 `skills/`**。想让桌面端的技能目录列出它，把它链进用户技能根（以后插件更新会自动跟着）:
+
+```bash
+mkdir -p ~/.dsh/skills
+ln -sfn ~/.dsh/profiles/desktop/node_modules/dsh-session-surgeon/skills/dsh-session-surgeon-update \
+        ~/.dsh/skills/dsh-session-surgeon-update
+```
 
 ## 命令行
 

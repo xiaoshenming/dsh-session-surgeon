@@ -1,9 +1,13 @@
 # dsh-session-surgeon bundle patch: inserts the dual-face plugin
-# into the web profile roster. Install with
-#   dsh plugin --profile web add "github:xiaoshenming/dsh-session-surgeon#main"
+# into the profile roster. On DSH Desktop add it from the Plugins page
+# (github:xiaoshenming/dsh-session-surgeon#main) and update it there; the
+# CLI equivalent is
+#   dsh plugin --profile desktop add "github:xiaoshenming/dsh-session-surgeon#main"
 #
 # Host half (exports ".") registers session_scan / session_inspect /
-# session_repair. Browser half (exports "./client") mounts the overlay.
+# session_repair. Browser half (exports "./client") registers the shell's own
+# sidebar row and center-column page (falling back to the overlay on a shell
+# without the slot seats).
 - insert:
     - id: session-surgeon
       name: dsh-session-surgeon
