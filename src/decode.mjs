@@ -11,6 +11,7 @@ import { flatReplayStateHits } from "./replay-state.mjs";
 import { MIGRATES_V0_ON_LOAD, migrationRefusalIssues } from "./migrate.mjs";
 import { missingMemberHits } from "./released-shape.mjs";
 import { settlementShapeHits } from "./settlement.mjs";
+import { catalogFactHits } from "./catalog-fact.mjs";
 import { literalPluginSourceHits } from "./message-shapes.mjs";
 import { turnStepImbalances, turnStepIssuesFrom } from "./turn-step.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
@@ -36,6 +37,7 @@ const HEALTH_RANK = [
   "v0-inbox-inserted-message",
   "v0-missing-member",
   "invalid-settlement-fields",
+  "descriptor-catalog-fact",
   "v4-literal-plugin-source",
   "turn-end-while-step-open",
   "step-after-turn-end",
@@ -346,6 +348,26 @@ export function decodeSessionBuffer(buf) {
       });
     }
   }
+  // The catalog path runs on the way into v4, so only a pre-v4 artifact can
+  // trip it; a stored v4 log is read as-is.
+  const catalogHits =
+    typeof fileVersion === "number" && fileVersion >= 1 && fileVersion <= 3
+      ? catalogFactHits(headerClass.header, finished.events)
+      : [];
+  if (catalogHits.length > 0) {
+    health = worse(health, "descriptor-catalog-fact");
+    if (!issues.some((i) => i.code === "descriptor-catalog-fact")) {
+      issues.push({
+        code: "descriptor-catalog-fact",
+        message:
+          "subagent descriptor at seq " +
+          catalogHits.map((hit) => `${hit.seq} (${hit.reason})`).join(", ") +
+          " — the v3→v4 child-catalog path interprets a child's own descriptor and refuses this one (\"has an invalid subagent descriptor mode\" for a mode outside continuable/one-shot, \"requires a supported versioned catalog fact\" for a missing label, which a continuable descriptor — including every version 1 row — must carry); the mode is a real property and the label is free text, so neither can be invented offline — repair only reports (#7995)",
+        seqs: catalogHits.map((hit) => hit.seq),
+        reasons: catalogHits.map((hit) => hit.reason),
+      });
+    }
+  }
   const turnStepHits = turnStepImbalances(finished.events);
   for (const issue of turnStepIssuesFrom(turnStepHits)) {
     if (MIGRATES_V0_ON_LOAD) health = worse(health, issue.code);
@@ -396,6 +418,7 @@ export function decodeSessionBuffer(buf) {
     turnStepImbalances: turnStepHits,
     missingMembers,
     settlementHits,
+    catalogHits,
     health,
   };
 }

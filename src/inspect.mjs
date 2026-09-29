@@ -64,6 +64,7 @@ export async function inspectEntry(entry) {
   for (const hit of turnStep) if (!flags.includes(hit.code)) flags.push(hit.code);
   if (decoded.missingMembers.length) flags.push("v0-missing-member");
   if (decoded.settlementHits.length) flags.push("invalid-settlement-fields");
+  if (decoded.catalogHits.length) flags.push("descriptor-catalog-fact");
   const emptyIds = emptyToolCallIds(decoded.events);
   if (emptyIds.length) flags.push("empty-tool-call-id");
   const duplicateIds = duplicateAdvertisedToolCallIds(decoded.events);
@@ -104,6 +105,7 @@ export async function inspectEntry(entry) {
     turnStepImbalances: turnStep,
     missingMembers: decoded.missingMembers,
     settlementHits: decoded.settlementHits,
+    catalogHits: decoded.catalogHits,
     emptyToolCallIds: emptyIds,
   };
 }
