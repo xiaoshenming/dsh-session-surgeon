@@ -5,6 +5,7 @@ import { encodeSession } from "../src/encode.mjs";
 import { planRepair } from "../src/repair.mjs";
 import { settlementShapeHits } from "../src/settlement.mjs";
 import { SESSION_MODULE_PATH } from "../src/runtime.mjs";
+import { pathToFileURL } from "node:url";
 
 const V4_HEADER = { version: 4, id: "session-settlement", createdAt: 1, cwd: "/tmp/surgeon", isSeeded: false, delegationDepth: 0 };
 const V0_HEADER = { version: 0, id: "session-settlement-v0", createdAt: 1, delegationDepth: 0 };
@@ -75,7 +76,7 @@ test("a healthy v4 log stays ok, and the detector costs nothing on it", async (t
   assert.deepEqual(decoded.settlementHits, []);
 });
 
-test("a v4 row with broken settlement fields is reported, not repaired", async (t) => {
+test("a v4 row with broken settlement fields is reported and then repaired", async (t) => {
   if (!SESSION_MODULE_PATH) {
     t.skip("without a runtime the bundled fallback reads v0 only, so a v4 log is foreign-version");
     return;
@@ -86,9 +87,71 @@ test("a v4 row with broken settlement fields is reported, not repaired", async (
   assert.ok(issue, "the refusal is reported");
   assert.deepEqual(issue.seqs, [2]);
   assert.deepEqual(issue.settlement, ["assistant/message:stream"]);
+
   const plan = planRepair(decoded);
-  assert.deepEqual(plan.actions, [], "stream is not recoverable, so repair must not write");
-  assert.deepEqual(plan.events, decoded.events);
+  assert.deepEqual(plan.actions.map((a) => a.code), ["settlement-fields"]);
+  const row = plan.events[2];
+  assert.deepEqual(row.data.stream, [], "the one admissible value; the deltas were already absent");
+  assert.equal(row.data.turn, 1, "turn and step come from the pair open at that seq");
+  assert.equal(row.data.step, 1);
+  assert.deepEqual(row.data.message, decoded.events[2].data.message, "the message is untouched");
+  assert.deepEqual(row.data.usage, decoded.events[2].data.usage, "usage is untouched");
+});
+
+test("the repaired row passes the released seed gate", async (t) => {
+  if (!SESSION_MODULE_PATH) {
+    t.skip("official dsh-session not resolvable");
+    return;
+  }
+  const { Session } = await import(pathToFileURL(SESSION_MODULE_PATH).href);
+  const healthy = await decodeV4();
+  assert.equal(healthy.health, "ok");
+  // Mutated in memory rather than re-encoded: our own writer normalises -0 to 0
+  // through JSON, so a -0 row only reaches planRepair from another writer.
+  const broken = (mutate) => {
+    const events = healthy.events.map((e) => ({ ...e, data: { ...e.data } }));
+    mutate(events[2].data);
+    return events;
+  };
+  for (const mutate of [
+    (d) => { delete d.stream; },
+    (d) => { d.stream = null; },
+    (d) => { d.stream = "chunks"; },
+    (d) => { delete d.turn; },
+    (d) => { d.turn = -0; },
+    (d) => { d.step = 1.5; },
+    (d) => { delete d.stream; delete d.step; },
+  ]) {
+    const events = broken(mutate);
+    assert.throws(
+      () => Session.fromRestore(V4_HEADER.id, events, V4_HEADER, 0, "detached", []),
+      /invalid settlement fields/,
+      "the released gate refuses the row before repair",
+    );
+    const plan = planRepair({ ...healthy, events });
+    assert.equal(plan.refuse, undefined);
+    Session.fromRestore(V4_HEADER.id, plan.events, V4_HEADER, 0, "detached", []);
+  }
+});
+
+test("a row outside any open turn is reported, not guessed at", async (t) => {
+  if (!SESSION_MODULE_PATH) {
+    t.skip("without a runtime the bundled fallback reads v0 only, so a v4 log is foreign-version");
+    return;
+  }
+  // The row sits before any turn/start, so there is no open pair to take a
+  // value from — and no turn or step is invented for it.
+  const data = {
+    message: { id: "m1", role: "assistant", source: SOURCE, content: [{ type: "text", text: "hi" }] },
+    stream: [{ type: "chunk", time: 1, chunk: { type: "block-start", index: 0, blockType: "text" } }],
+  };
+  const events = [{ ...ev("assistant/message", 0, data), surfaceOp: "append" }];
+  const decoded = decodeSessionBuffer(await encodeSession({ header: V4_HEADER, events, packChunks: false }));
+  assert.deepEqual(decoded.settlementHits, [{ seq: 0, type: "assistant/message", members: ["turn", "step"] }]);
+  const plan = planRepair(decoded);
+  assert.deepEqual(plan.actions.map((a) => a.code), ["settlement-unresolved"]);
+  assert.equal("turn" in plan.events[0].data, false, "nothing is written for a member that cannot be derived");
+  assert.equal("step" in plan.events[0].data, false);
 });
 
 test("a v0 row without stream is left alone: the released v0 inventory forbids stream there", async () => {

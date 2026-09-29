@@ -19,11 +19,14 @@
  * v0 is excluded: a released v0 `assistant/message` may not carry `stream` at
  * all (the v0→v1 payload gate rejects it as an unexpected member), and the
  * member set only becomes `[turn, step, message, stream]` in the v2 inventory.
+ *
+ * `stream` cannot be reconstructed, but the row is still repairable: see
+ * `settle.mjs` for the measured reason an empty array is admissible.
  */
-const SETTLEMENT_TYPES = new Set(["assistant/message", "assistant/attempt"]);
+export const SETTLEMENT_TYPES = new Set(["assistant/message", "assistant/attempt"]);
 
 /** `-0` passes `>= 0` but is refused by the gate, so it is tested explicitly. */
-function isOrdinal(value) {
+export function isOrdinal(value) {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && !Object.is(value, -0);
 }
 

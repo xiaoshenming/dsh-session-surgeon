@@ -9,6 +9,7 @@ import { applyMigrationFixes, MIGRATES_V0_ON_LOAD } from "./migrate.mjs";
 import { applyForwardEventShims } from "./forward-events.mjs";
 import { disambiguateDuplicateToolCallIds } from "./duplicates.mjs";
 import { wrapFlatReplayStates } from "./replay-state.mjs";
+import { settleAssistantFields } from "./settle.mjs";
 import { INSTALLED_CATALOG } from "./runtime.mjs";
 
 const DEFAULT_STEPS = {
@@ -25,6 +26,7 @@ const DEFAULT_STEPS = {
   legacyReplayState: true,
   loneSurrogate: true,
   messageId: true,
+  settlement: true,
   closers: true,
 };
 
@@ -258,6 +260,17 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
     if (filled.fixed > 0) {
       events = filled.value;
       actions.push({ code: "message-missing-id", detail: "filled " + filled.fixed + " missing message id(s)" });
+    }
+  }
+
+  // The settlement gate is a current-generation invariant: a released v0 row
+  // may legitimately carry no `stream` at all, so v0 is left to v0-missing-member.
+  const fileVersion = decoded.header?.version;
+  if (steps.settlement && typeof fileVersion === "number" && fileVersion >= 1) {
+    const settled = settleAssistantFields(events);
+    if (settled.actions.length > 0) {
+      events = settled.value;
+      actions.push(...settled.actions);
     }
   }
 
