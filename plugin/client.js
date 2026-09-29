@@ -486,7 +486,7 @@ window.__ModuleLoader__.load({
         const selected = selectedRow();
         const health = selected ? healthOf(selected) : "";
         const main = selected
-          ? '<div class="ss-dhead"><span class="ss-dtitle">' + esc(state.selected) + '</span><span class="ss-badge' + (isBad(health) ? " bad" : "") + '">' + esc(labelOf(health)) + "</span></div>"
+          ? '<div class="ss-dhead"><span class="ss-dtitle">' + esc(state.chat?.title || state.selected) + '</span><span class="ss-badge' + (isBad(health) ? " bad" : "") + '">' + esc(labelOf(health)) + "</span></div>"
             + '<p class="ss-note">' + esc(hintOf(health)) + (state.chat?.cwd ? "<br>" + T("cwd") + esc(state.chat.cwd) : "") + "</p>"
             + '<div class="ss-idbox"><span>' + esc(state.selected) + '</span><button type="button" class="ss-btn primary" data-act="copy">' + T("copyIdBtn") + "</button></div>"
             + '<div class="ss-actions"><button type="button" class="ss-btn" data-act="inspect">' + T("actInspect") + '</button><button type="button" class="ss-btn" data-act="repair">' + T("actRepair") + '</button><button type="button" class="ss-btn danger" data-act="repair-apply">' + T("actApply") + '</button><button type="button" class="ss-btn" data-act="export">' + T("actExport") + "</button></div>"
