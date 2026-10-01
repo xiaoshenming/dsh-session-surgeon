@@ -29,6 +29,41 @@ function rewriteId(id, n) {
   return `${id}#${n}`;
 }
 
+function rewriteStreamIds(stream, idQueues) {
+  if (!Array.isArray(stream) || idQueues.size === 0) return stream;
+  let changed = false;
+  const blockIds = new Map();
+  const blockCounters = new Map();
+  const allIds = [...idQueues.keys()];
+  let fallbackIndex = 0;
+  const mapId = (index, id) => {
+    if (blockIds.has(index)) return blockIds.get(index);
+    let queue = idQueues.get(id);
+    if (!queue) {
+      const fallbackId = allIds[fallbackIndex++];
+      queue = idQueues.get(fallbackId);
+      id = fallbackId;
+    }
+    if (!queue || queue.length === 0) return id;
+    const position = blockCounters.get(id) ?? 0;
+    blockCounters.set(id, position + 1);
+    const mapped = queue[position] ?? id;
+    blockIds.set(index, mapped);
+    return mapped;
+  };
+  const next = stream.map((record) => {
+    if (!record || typeof record !== "object") return record;
+    if (record.type === "tool-call-chunks") {
+      const id = mapId(record.index, record.id);
+      if (id === record.id) return record;
+      changed = true;
+      return { ...record, id };
+    }
+    return record;
+  });
+  return changed ? next : stream;
+}
+
 /** Hits where an assistant/message re-advertises a callId already seen this step. */
 export function duplicateAdvertisedToolCallIds(events) {
   const hits = [];
@@ -59,6 +94,7 @@ export function disambiguateDuplicateToolCallIds(events) {
   let origOrder = new Map();
   let callCursor = new Map();
   let resultCursor = new Map();
+  const resultIdBySeq = new Map();
 
   function reset() {
     advertised = new Map();
@@ -75,6 +111,7 @@ export function disambiguateDuplicateToolCallIds(events) {
       const content = event.data?.message?.content;
       if (!Array.isArray(content)) continue;
       let nextContent = null;
+      const idQueues = new Map();
       for (let b = 0; b < content.length; b++) {
         const block = content[b];
         if (!block || block.type !== "tool-call") continue;
@@ -91,6 +128,8 @@ export function disambiguateDuplicateToolCallIds(events) {
         } else {
           advertised.set(id, 1);
         }
+        if (!idQueues.has(id)) idQueues.set(id, []);
+        idQueues.get(id).push(finalId);
         if (!origOrder.has(id)) origOrder.set(id, []);
         origOrder.get(id).push(finalId);
       }
@@ -99,7 +138,11 @@ export function disambiguateDuplicateToolCallIds(events) {
           ...event,
           data: {
             ...event.data,
-            message: { ...event.data.message, content: nextContent },
+            message: {
+              ...event.data.message,
+              content: nextContent,
+              stream: rewriteStreamIds(event.data.message.stream, idQueues),
+            },
           },
         };
       }
@@ -122,13 +165,29 @@ export function disambiguateDuplicateToolCallIds(events) {
     }
 
     if (event.type === "tool/result") {
-      const id = event.data?.message?.source?.callId;
-      if (typeof id !== "string" || id === "" || !origOrder.has(id)) continue;
+      const id = event.data?.message?.source?.callId ?? event.data?.message?.toolCallId;
+      if (typeof id !== "string" || id === "") continue;
+      const sourceSeq = event.surfaceOp && typeof event.surfaceOp === "object" ? event.surfaceOp.startSeq : undefined;
+      const replacementId = sourceSeq === undefined ? undefined : resultIdBySeq.get(sourceSeq);
+      if (replacementId !== undefined) {
+        if (replacementId !== id) {
+          value[i] = { ...event, data: { ...event.data, message: {
+            ...event.data.message,
+            toolCallId: replacementId,
+            source: { ...event.data.message.source, callId: replacementId },
+          } } };
+          rewritten += 1;
+        }
+        resultIdBySeq.set(event.seq, replacementId);
+        continue;
+      }
+      if (!origOrder.has(id)) continue;
       const list = origOrder.get(id);
       const idx = resultCursor.get(id) ?? 0;
       if (idx >= list.length) continue;
       const finalId = list[idx];
       resultCursor.set(id, idx + 1);
+      resultIdBySeq.set(event.seq, finalId);
       if (finalId !== id) {
         value[i] = {
           ...event,
@@ -136,6 +195,7 @@ export function disambiguateDuplicateToolCallIds(events) {
             ...event.data,
             message: {
               ...event.data.message,
+              toolCallId: finalId,
               source: { ...event.data.message.source, callId: finalId },
             },
           },
