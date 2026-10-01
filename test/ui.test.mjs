@@ -21,6 +21,8 @@ function fakeBrowser() {
   const reactCalls = [];
   const effects = [];
   const refs = [];
+  const documentListeners = new Map();
+  const panelSelections = [];
   const base = {
     dataset: {},
     style: {},
@@ -28,7 +30,7 @@ function fakeBrowser() {
     innerHTML: "",
     isConnected: false,
     parentElement: null,
-    addEventListener() {},
+    addEventListener(type, fn) { (this.listeners ||= {})[type] = fn; },
     removeEventListener() {},
     setAttribute() {},
     removeAttribute() {},
@@ -51,9 +53,13 @@ function fakeBrowser() {
     },
     querySelector() { return null; },
     querySelectorAll() { return []; },
-    addEventListener() {},
+    addEventListener(type, fn) {
+      const entries = documentListeners.get(type) || [];
+      entries.push(fn);
+      documentListeners.set(type, entries);
+    },
     removeEventListener() {},
-    dispatchEvent() {},
+    dispatchEvent(event) { for (const fn of documentListeners.get(event.type) || []) fn(event); },
   };
   const React = {
     createElement(type, props, ...children) {
@@ -83,6 +89,7 @@ function fakeBrowser() {
     reactCalls,
     effects,
     refs,
+    panelSelections,
     createElement: (tag) => documentStub.createElement(tag),
     require(name) {
       if (name === "react") return React;
@@ -105,6 +112,8 @@ function slotContext(browser, options) {
       subscribe(fn) { browser.listeners.push(fn); return () => {}; },
     },
     effect() {},
+    layout: { selectPanel(id) { browser.panelSelections.push(id); } },
+    get(name) { return name === "layout" ? this.layout : undefined; },
     ...(options?.slots === false ? {} : {
       slots: {
         inject(name, callback) { browser.injected.push(name); callback(); return () => {}; },
@@ -190,6 +199,28 @@ test("the native page attaches the shared shell and survives a panel switch", as
   browser.refs[0].current = again;
   browser.effects[0]();
   assert.equal(again.replaced[0], shell, "the same panel body must come back");
+});
+
+test("native page buttons return to chat and open the selected session", async () => {
+  const browser = fakeBrowser();
+  const mod = await loadClient(browser);
+  mod.apply(slotContext(browser));
+  const page = browser.registrations.find((entry) => entry.options.name === "main");
+  page.component();
+  const host = browser.createElement("div");
+  browser.refs[0].current = host;
+  browser.effects[0]();
+  const shell = host.replaced[0];
+
+  shell.listeners.click({ target: { closest(selector) {
+    if (selector === "[data-act]") return { getAttribute() { return "close"; } };
+    return null;
+  } } });
+  assert.deepEqual(browser.panelSelections, [null], "the back button selects the chat panel");
+
+  const openListeners = browser.context.document;
+  openListeners.dispatchEvent({ type: "dsh-surgeon-open", detail: { id: "session-picked", act: "inspect" } });
+  assert.deepEqual(browser.panelSelections, [null, PANEL_ID], "the menu action selects the surgeon page");
 });
 
 test("a shell without a slot registry keeps the overlay fallback", async () => {  const browser = fakeBrowser();

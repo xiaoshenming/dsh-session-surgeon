@@ -461,7 +461,15 @@ window.__ModuleLoader__.load({
       const shell = document.createElement("div");
       shell.className = "ss-shell";
       let pending;
-      const layoutOf = () => { try { return ctx?.layout ?? (typeof ctx?.get === "function" ? ctx.get("layout") : undefined); } catch { return undefined; } };
+      const layoutOf = () => { try { return typeof ctx?.get === "function" ? ctx.get("layout") : ctx?.layout; } catch { return ctx?.layout; } };
+      const selectPanel = (id) => {
+        const layout = layoutOf();
+        if (!layout || typeof layout.selectPanel !== "function") return false;
+        try { layout.selectPanel(id); return true; } catch (error) {
+          console.warn("[dsh-session-surgeon] panel switch failed:", error);
+          return false;
+        }
+      };
       const selectedRow = () => state.rows.find((r) => sessionIdOf(r) === state.selected);
       const listHtml = () => {
         const groups = new Map();
@@ -592,7 +600,7 @@ window.__ModuleLoader__.load({
         const row = event.target?.closest?.("[data-id]");
         if (row?.dataset.id && !act) loadChat(row.dataset.id);
         if (act === "close") {
-          if (state.mode === "page") { try { layoutOf()?.selectPanel?.(null); } catch { /* older shell */ } }
+          if (state.mode === "page") selectPanel(null);
           else controller.close();
         }
         if (act === "scan") scan();
@@ -703,7 +711,7 @@ window.__ModuleLoader__.load({
       try { React = require("react"); } catch { return null; }
       if (!React || typeof React.createElement !== "function" || typeof React.useEffect !== "function") return null;
       const createElement = React.createElement;
-      const layoutOf = () => { try { return ctx?.layout ?? (typeof ctx?.get === "function" ? ctx.get("layout") : undefined); } catch { return undefined; } };
+      const layoutOf = () => { try { return typeof ctx?.get === "function" ? ctx.get("layout") : ctx?.layout; } catch { return ctx?.layout; } };
       const Glyph = function SessionSurgeonGlyph(props) {
         const size = props?.size ?? 16;
         return createElement("svg", {
@@ -743,8 +751,14 @@ window.__ModuleLoader__.load({
       const onOpen = (event) => {
         const id = event.detail?.id;
         if (!id) return;
+        // Queue the request before switching. The native page can be unmounted
+        // while the shell changes seats, so show() must not depend on its
+        // current DOM connection.
         panel.show(id, event.detail?.act === "repair" ? "repair" : undefined);
-        try { layoutOf()?.selectPanel?.(PANEL_ID); } catch (error) { console.warn("[dsh-session-surgeon] panel switch failed:", error); }
+        const layout = layoutOf();
+        if (layout && typeof layout.selectPanel === "function") {
+          try { layout.selectPanel(PANEL_ID); } catch (error) { console.warn("[dsh-session-surgeon] panel switch failed:", error); }
+        }
       };
       document.addEventListener("dsh-surgeon-open", onOpen);
       return () => { document.removeEventListener("dsh-surgeon-open", onOpen); for (const d of disposers) { try { d(); } catch { /* ignore */ } } };
