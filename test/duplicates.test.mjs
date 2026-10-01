@@ -29,6 +29,14 @@ function assistant(seq, ids) {
           name: "bash",
           arguments: "{}",
         })),
+        stream: ids.map((id, index) => ({
+          type: "tool-call-chunks",
+          time0: seq + 1,
+          index,
+          dt: [1],
+          id,
+          args: ["{}"],
+        })),
       },
     },
   };
@@ -53,6 +61,7 @@ function result(seq, callId) {
         id: "msg-" + seq,
         role: "tool",
         source: { kind: "tool", callId },
+        toolCallId: callId,
         content: [{ type: "text", text: "ok" }],
       },
     },
@@ -85,7 +94,37 @@ test("disambiguate suffixes later duplicates and remaps call/result in order", (
   assert.equal(value[3].data.callId, "call_x|fc_1#2");
   assert.equal(value[4].data.message.source.callId, "call_x|fc_1");
   assert.equal(value[5].data.message.source.callId, "call_x|fc_1#2");
+  assert.equal(value[4].data.message.toolCallId, "call_x|fc_1");
+  assert.equal(value[5].data.message.toolCallId, "call_x|fc_1#2");
+  assert.equal(value[1].data.message.stream[1].id, "call_x|fc_1#2");
   assert.equal(duplicateAdvertisedToolCallIds(value).length, 0);
+});
+
+test("preserves the mapped id across a tool/result surface replacement", () => {
+  const events = [
+    { type: "turn/start", seq: 0, time: 1, data: { turn: 1 } },
+    assistant(1, ["call_x|fc_1", "call_x|fc_1"]),
+    call(2, "call_x|fc_1"),
+    call(3, "call_x|fc_1"),
+    result(4, "call_x|fc_1"),
+    {
+      ...result(5, "call_x|fc_1"),
+      sourceEventSeqs: [4],
+      surfaceOp: { op: "replace", startSeq: 4, endSeq: 4 },
+      data: {
+        ...result(5, "call_x|fc_1").data,
+        message: {
+          ...result(5, "call_x|fc_1").data.message,
+          content: [{ type: "text", text: "replacement" }],
+        },
+      },
+    },
+    { type: "turn/end", seq: 6, time: 7, data: { turn: 1, reason: { kind: "completed" } } },
+  ];
+  const { value } = disambiguateDuplicateToolCallIds(events);
+  assert.equal(value[4].data.message.source.callId, "call_x|fc_1");
+  assert.equal(value[5].data.message.source.callId, "call_x|fc_1");
+  assert.equal(value[5].data.message.toolCallId, "call_x|fc_1");
 });
 
 test("decode/repair of duplicate advertised ids follows the installed format version", async () => {
