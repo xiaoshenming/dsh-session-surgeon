@@ -352,6 +352,19 @@ window.__ModuleLoader__.load({
     function currentFromCtx(ctx) {
       try { return ctx?.sessions?.list?.getSnapshot?.()?.current; } catch { return undefined; }
     }
+    /**
+     * Read a service without declaring it. Cordis throws
+     * `cannot get property "layout" without inject` for a direct read of a
+     * service this plugin did not declare, and `ctx.get(name)` is its optional
+     * lookup — the only access that also keeps working on a shell whose UI
+     * seats are missing, where the overlay fallback has to stay reachable.
+     */
+    function serviceOf(ctx, name) {
+      if (typeof ctx?.get === "function") {
+        try { const service = ctx.get(name); if (service) return service; } catch { /* fall through */ }
+      }
+      try { return ctx?.[name]; } catch { return undefined; }
+    }
     function idFromRow(row, ctx) {
       const list = ctx?.sessions?.list?.getSnapshot?.();
       if (!row) return list?.current;
@@ -461,7 +474,7 @@ window.__ModuleLoader__.load({
       const shell = document.createElement("div");
       shell.className = "ss-shell";
       let pending;
-      const layoutOf = () => { try { return typeof ctx?.get === "function" ? ctx.get("layout") : ctx?.layout; } catch { return ctx?.layout; } };
+      const layoutOf = () => serviceOf(ctx, "layout");
       const selectPanel = (id) => {
         const layout = layoutOf();
         if (!layout || typeof layout.selectPanel !== "function") return false;
@@ -701,17 +714,13 @@ window.__ModuleLoader__.load({
     function mountNativePanel(ctx, panel, require) {
       // A context without the service may resolve (or throw) either way, and a
       // shell that has no slot registry at all must keep the overlay path.
-      let slots;
-      try { slots = ctx?.slots; } catch { slots = undefined; }
-      if (!slots && typeof ctx?.get === "function") {
-        try { slots = ctx.get("slots"); } catch { slots = undefined; }
-      }
+      const slots = serviceOf(ctx, "slots");
       if (!slots || typeof slots.inject !== "function" || typeof slots.register !== "function" || typeof require !== "function") return null;
       let React;
       try { React = require("react"); } catch { return null; }
       if (!React || typeof React.createElement !== "function" || typeof React.useEffect !== "function") return null;
       const createElement = React.createElement;
-      const layoutOf = () => { try { return typeof ctx?.get === "function" ? ctx.get("layout") : ctx?.layout; } catch { return ctx?.layout; } };
+      const layoutOf = () => serviceOf(ctx, "layout");
       const Glyph = function SessionSurgeonGlyph(props) {
         const size = props?.size ?? 16;
         return createElement("svg", {

@@ -106,14 +106,8 @@ async function loadClient(browser) {
 }
 
 function slotContext(browser, options) {
-  return {
-    locale: {
-      getLocale() { return { active: "zh" }; },
-      subscribe(fn) { browser.listeners.push(fn); return () => {}; },
-    },
-    effect() {},
+  const services = {
     layout: { selectPanel(id) { browser.panelSelections.push(id); } },
-    get(name) { return name === "layout" ? this.layout : undefined; },
     ...(options?.slots === false ? {} : {
       slots: {
         inject(name, callback) { browser.injected.push(name); callback(); return () => {}; },
@@ -121,6 +115,25 @@ function slotContext(browser, options) {
       },
     }),
   };
+  const ctx = {
+    // Declared in the plugin's own inject, so a direct read stays legal.
+    locale: {
+      getLocale() { return { active: "zh" }; },
+      subscribe(fn) { browser.listeners.push(fn); return () => {}; },
+    },
+    effect() {},
+    get(name) { return services[name]; },
+  };
+  // Everything else mirrors cordis' context proxy: reading a service the
+  // plugin did not declare throws, and only ctx.get() reaches it. That is the
+  // 0.2.0 regression — `ctx.layout` threw, so the buttons did nothing.
+  for (const name of ["layout", "slots"]) {
+    Object.defineProperty(ctx, name, {
+      get() { throw new Error(`cannot get property "${name}" without inject`); },
+      configurable: true,
+    });
+  }
+  return ctx;
 }
 
 test("sidebar-collapse CSS matches dsh-better-sidebar's body attribute (#4/#5)", async () => {
@@ -204,7 +217,9 @@ test("the native page attaches the shared shell and survives a panel switch", as
 test("native page buttons return to chat and open the selected session", async () => {
   const browser = fakeBrowser();
   const mod = await loadClient(browser);
-  mod.apply(slotContext(browser));
+  const ctx = slotContext(browser);
+  assert.throws(() => ctx.layout, /cannot get property "layout" without inject/, "the stub mirrors the shell's inject gate");
+  mod.apply(ctx);
   const page = browser.registrations.find((entry) => entry.options.name === "main");
   page.component();
   const host = browser.createElement("div");
