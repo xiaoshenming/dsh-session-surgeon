@@ -7,7 +7,7 @@ description: |
 # 更新插件 — dsh-session-surgeon 自我迭代
 
 加载方式：DSH 技能目录里有就直接 `skill`；没列出（或报 unknown）就让 agent 直接 `read skills/dsh-session-surgeon-update/SKILL.md` —— 本仓库的更新流程就是这么跑通的，纯 markdown，不需要注册。
-**桌面端的技能索引不扫已装插件的包内目录**：`@deepseek-ai/dsh-skill-filesystem` 只认 `<project>/.dsh/skills`、`<project>/.agents/skills`、`customSkillDirs`、`$DSH_HOME/skills`（本机 `~/.dsh/skills`）、`~/.agents/skills` 和 `DSH_BUNDLED_SKILL_DIR`。所以桌面端要"被索引到"有两条路：① 让 agent 直接读装好的那份 `~/.dsh/profiles/desktop/node_modules/dsh-session-surgeon/skills/dsh-session-surgeon-update/SKILL.md`；② 把它链进用户技能根（更新后自动跟随，不用重拷）：
+**桌面端的技能索引不扫已装插件的包内目录**：`@deepseek-ai/dsh-skill-filesystem` 只认 `<project>/.dsh/skills`（rank 100）、`<project>/.agents/skills`（200）、`customSkillDirs`（300）、`$DSH_HOME/skills`（本机 `~/.dsh/skills`，400）、`~/.agents/skills`（500）和 `DSH_BUNDLED_SKILL_DIR`/`bundledSkillDir`（600）。**`includeDefaultRoots: false` 会一次性关掉项目根、用户根和 `$DSH_BUNDLED_SKILL_DIR` 默认值**，只剩 `customSkillDirs` 和显式 `bundledSkillDir`（桌面端 `cordis` preset 那行就是这么把技能全弄丢的，#8649）——往 `~/.dsh/skills` 做个链接在这行配置下**不会**被扫到，得改 `customSkillDirs` 或让它回到默认根。所以桌面端要"被索引到"有两条路：① 让 agent 直接读装好的那份 `~/.dsh/profiles/desktop/node_modules/dsh-session-surgeon/skills/dsh-session-surgeon-update/SKILL.md`；② 把它链进用户技能根（更新后自动跟随，不用重拷；前提是那行没关掉默认根）：
 `ln -sfn ~/.dsh/profiles/desktop/node_modules/dsh-session-surgeon/skills/dsh-session-surgeon-update ~/.dsh/skills/dsh-session-surgeon-update`
 
 用户只说「更新」或「更新插件」时，不要再问流程。加载本技能后直接执行：扫社区 → 判断该不该改代码 → 改 / 测 / 写 CHANGELOG → 对口回复 → 用 px 推 `origin/main` → 用中文汇报。
