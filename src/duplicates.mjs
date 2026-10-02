@@ -29,38 +29,65 @@ function rewriteId(id, n) {
   return `${id}#${n}`;
 }
 
-function rewriteStreamIds(stream, idQueues) {
-  if (!Array.isArray(stream) || idQueues.size === 0) return stream;
+/**
+ * The tool-call id one durable stream record carries, with a copy that swaps
+ * it. Three record shapes exist: the compact `tool-call-chunks` run, and the
+ * raw `chunk` wrapper for a delta the accumulator could not merge (it keeps
+ * `id.length === 0 || name === ""` deltas verbatim) and for `block-end`,
+ * whose assembled block the loader hands back untouched.
+ */
+function streamRecordId(record) {
+  if (!record || typeof record !== "object") return undefined;
+  if (record.type === "tool-call-chunks") {
+    return { index: record.index, id: record.id, put: (id) => ({ ...record, id }) };
+  }
+  const chunk = record.type === "chunk" ? record.chunk : undefined;
+  if (!chunk || typeof chunk !== "object") return undefined;
+  if (chunk.type === "tool-call-delta" && typeof chunk.id === "string") {
+    return { index: chunk.index, id: chunk.id, put: (id) => ({ ...record, chunk: { ...chunk, id } }) };
+  }
+  if (chunk.type === "block-end" && chunk.block?.type === "tool-call" && typeof chunk.block.id === "string") {
+    return { index: chunk.index, id: chunk.block.id, put: (id) => ({ ...record, chunk: { ...chunk, block: { ...chunk.block, id } } }) };
+  }
+  return undefined;
+}
+
+/**
+ * Re-point the ids inside the embedded stream at the suffixed ids, so the
+ * reconstruction the loader compares against `message.content` still agrees.
+ * Records whose id is not one of the rewritten calls are left alone; a record
+ * that runs past its queue means the stream never matched the content, so the
+ * caller must refuse rather than guess.
+ * @returns the rewritten stream, or null when the mapping is not total.
+ */
+function rewriteStreamIds(stream, idQueues, rewrittenIds) {
+  if (!Array.isArray(stream) || rewrittenIds.size === 0) return stream;
   let changed = false;
-  const blockIds = new Map();
-  const blockCounters = new Map();
-  const allIds = [...idQueues.keys()];
-  let fallbackIndex = 0;
-  const mapId = (index, id) => {
-    if (blockIds.has(index)) return blockIds.get(index);
-    let queue = idQueues.get(id);
-    if (!queue) {
-      const fallbackId = allIds[fallbackIndex++];
-      queue = idQueues.get(fallbackId);
-      id = fallbackId;
+  const consumed = new Map();
+  const byIndex = new Map();
+  const next = [];
+  for (const record of stream) {
+    const found = streamRecordId(record);
+    if (!found || typeof found.id !== "string" || !rewrittenIds.has(found.id)) {
+      next.push(record);
+      continue;
     }
-    if (!queue || queue.length === 0) return id;
-    const position = blockCounters.get(id) ?? 0;
-    blockCounters.set(id, position + 1);
-    const mapped = queue[position] ?? id;
-    blockIds.set(index, mapped);
-    return mapped;
-  };
-  const next = stream.map((record) => {
-    if (!record || typeof record !== "object") return record;
-    if (record.type === "tool-call-chunks") {
-      const id = mapId(record.index, record.id);
-      if (id === record.id) return record;
-      changed = true;
-      return { ...record, id };
+    let mapped = byIndex.get(found.index);
+    if (mapped === undefined) {
+      const queue = idQueues.get(found.id) ?? [];
+      const position = consumed.get(found.id) ?? 0;
+      if (position >= queue.length) return null;
+      consumed.set(found.id, position + 1);
+      mapped = queue[position];
+      byIndex.set(found.index, mapped);
     }
-    return record;
-  });
+    if (mapped === found.id) {
+      next.push(record);
+      continue;
+    }
+    changed = true;
+    next.push(found.put(mapped));
+  }
   return changed ? next : stream;
 }
 
@@ -112,6 +139,7 @@ export function disambiguateDuplicateToolCallIds(events) {
       if (!Array.isArray(content)) continue;
       let nextContent = null;
       const idQueues = new Map();
+      const rewrittenIds = new Set();
       for (let b = 0; b < content.length; b++) {
         const block = content[b];
         if (!block || block.type !== "tool-call") continue;
@@ -124,6 +152,7 @@ export function disambiguateDuplicateToolCallIds(events) {
           finalId = rewriteId(id, n);
           if (!nextContent) nextContent = content.slice();
           nextContent[b] = { ...block, id: finalId };
+          rewrittenIds.add(id);
           rewritten += 1;
         } else {
           advertised.set(id, 1);
@@ -134,15 +163,16 @@ export function disambiguateDuplicateToolCallIds(events) {
         origOrder.get(id).push(finalId);
       }
       if (nextContent) {
+        const nextStream = rewriteStreamIds(event.data?.stream, idQueues, rewrittenIds);
+        // An untotal mapping means the stream never agreed with the content;
+        // writing the content alone would trade one refusal for another.
+        if (nextStream === null) return { value: events, rewritten: 0 };
         value[i] = {
           ...event,
           data: {
             ...event.data,
-            message: {
-              ...event.data.message,
-              content: nextContent,
-              stream: rewriteStreamIds(event.data.message.stream, idQueues),
-            },
+            message: { ...event.data.message, content: nextContent },
+            stream: nextStream,
           },
         };
       }
