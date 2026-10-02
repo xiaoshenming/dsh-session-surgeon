@@ -29,7 +29,7 @@
 | `seq-gap-committed` | 展开后 seq 不连续，且之后有 turn/end | **拒载**（#1497/#1586） | 主修复路径；若能证明是崩溃恢复闭包 vs 还活着的写者，丢掉闭包、保留 live 分支 |
 | `packed-overlap-suffix` | packed 行从已提交 seq 往回重叠、后缀连续且前缀与已提交事件一致 | **拒载**（#5151） | 丢掉已提交前缀成员，收下尚未提交的后缀 |
 | `newer-format-ranges` | `sourceEventSeqs` 含 `[start,end]` 区间（Alpha #3048，version 仍为 0） | **0.1.2-rc.1+** persistence 读时展开，文件健康；更旧 rc.2 `foldSurface` 仍拒载（#5160） | 仅当本机 runtime **没有** `decodeSeqRanges` 时展开成密集整数；有则 no-op |
-| `duplicate-tool-call-id` | 同一步 `assistant/message` 多次通告同一 `callId` | **0.1.3+** v0→v1 迁移拒读（#5909）；v0 读端仍能打开 | 仅当本机 `SESSION_FORMAT_VERSION >= 1` 时给后出现的 id 加 `#n` 并按出现顺序重映射 `tool/call` / `tool/result`；不编空 id |
+| `duplicate-tool-call-id` | 同一步 `assistant/message` 多次通告同一 `callId` | **0.1.3+** v0→v1 迁移拒读（#5909）；v4 另在读盘的关系折叠里拒（`repeats advertised tool call`） | 仅当本机 `SESSION_FORMAT_VERSION >= 1` 时给后出现的 id 加 `#n`，并按出现顺序重映射 `tool/call.callId`、`tool/result` 的 `message.toolCallId` + `source.callId`，以及 `data.stream` 里带 id 的记录（`tool-call-chunks` / `block-end` / 未合并的 `tool-call-delta`）；替换行沿用被替换行的 id。映射不完整就整体 refuse，不猜 id、不编空 id |
 | `legacy-replay-state` | `assistant/chunk` finish / message source 的 `replayState` 根上有 `kind`（扁平 pi-ai） | **0.1.3+** v0→v1 `unexpected member "kind"`（#5694/#5909）；v0 仍能打开 | 仅当本机 format ≥ 1 时把除 `blocks` 外的键挪进 `response`；不编字段 |
 | `v0-preset-extra-member` | `permission/preset` data 带冻结清单外成员（如 `origin`） | **0.1.5** v0→v1 迁移拒读（#6189）；v0 仍能打开 | 仅当本机 format ≥ 1 时只保留 `preset`，权限语义不变 |
 | `v0-descriptor-version` | `subagent/descriptor` data.version ≠ 3 | **0.1.5** 迁移拒读 v0 工件（#6151） | 仅当本机 format ≥ 1 时把 version 改成 3（成员形状相同） |
