@@ -52,6 +52,38 @@ test("danglingToolCalls flags a tool/call with no matching tool/result", () => {
   assert.deepEqual(danglingToolCalls(DANGLING), [{ seq: 1, callId: "call-a" }]);
 });
 
+test("a call whose step is still open at the tail is not a refusal", () => {
+  // The crash shape: the log ends inside the step, and the engine's own
+  // interrupted-turn closers write the result on resume. A real 2970-event v4
+  // log in this shape is accepted by the shipped 0.2.0-rc.2 verifier.
+  const events = [
+    { type: "turn/start", seq: 0, time: 1, data: { turn: 1 } },
+    { type: "step/start", seq: 1, time: 2, data: { turn: 1, step: 1 } },
+    call(2, "call-a"),
+  ];
+  assert.deepEqual(danglingToolCalls(events), []);
+});
+
+test("a call whose step closed without a result is reported", () => {
+  const events = [
+    { type: "turn/start", seq: 0, time: 1, data: { turn: 1 } },
+    { type: "step/start", seq: 1, time: 2, data: { turn: 1, step: 1 } },
+    call(2, "call-a"),
+    { type: "step/end", seq: 3, time: 4, data: { turn: 1, step: 1 } },
+    { type: "turn/end", seq: 4, time: 5, data: { turn: 1, reason: { kind: "completed" } } },
+  ];
+  assert.deepEqual(danglingToolCalls(events), [{ seq: 2, callId: "call-a" }]);
+});
+
+test("an empty callId is reported even inside an open step", () => {
+  const events = [
+    { type: "turn/start", seq: 0, time: 1, data: { turn: 1 } },
+    { type: "step/start", seq: 1, time: 2, data: { turn: 1, step: 1 } },
+    call(2, ""),
+  ];
+  assert.deepEqual(danglingToolCalls(events), [{ seq: 2, callId: "" }]);
+});
+
 test("empty callId is always dangling, even if a result also has empty id", () => {
   const events = [
     call(0, ""),

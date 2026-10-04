@@ -172,7 +172,7 @@ CI 红必须当轮修掉再推一次（测试分叉是常见原因，见第 3 �
 ## 已知形状（已实现，不要当新 bug 重做）
 
 - 缺 `message.id` → 只补 id
-- 悬空 `tool/call` → inspect `dangling-tool-call`，不编结果（为什么只能报警见下面那条）
+- 悬空 `tool/call` → inspect `dangling-tool-call`，不编结果（为什么只能报警见下面那条）。**判据要按 step 边界收窄（2026-10-04 用真实库体检发现的假阳性）**：折叠只在 `step/end` 要求配对（`assertNoUnresolvedTools(toolLifecycles, "step/end")`），所以「尾部 step 还开着、调用没结果」是普通崩溃形状 —— 引擎的 `interruptedTurnClosers()` 会在 resume 时补结果。实测本机一份 2970 事件的真实 v4 会话（尾部未闭合 step + 未配对调用）被桌面 0.2.0-rc.2 验证器**接受**，而我们当时报 `dangling-tool-call`；现在只在「step 已闭合仍无结果」时报，空 callId 例外（call 本身上就被拒，不看 step）。**教训：每轮除了扫社区，也要拿真实库跑一遍 `inspect` 找假阳性**，合成 fixture 永远不会暴露这种
 - #5182 空 `tool_calls[].id` → inspect `empty-tool-call-id`，不编 callId（根因是引擎出栈过滤）
 - Windows bak `fsync` EPERM → `fsyncBestEffort`
 - #1586 live-writer-tail：丢掉崩溃恢复闭包，保住还活着的写者

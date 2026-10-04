@@ -402,8 +402,8 @@ export function decodeSessionBuffer(buf) {
       issues.push({
         code: "dangling-tool-call",
         message:
-          "tool/call without tool/result: " + seqs.join(", ") +
-          " — next model request will 400; on 0.1.7 the same inner assertion (\"step/end leaves unresolved tool call\") refuses the session from both entry points, but the wrappers differ and that is how you tell them apart: reading a stored v4 log surfaces it inside SessionPersistenceCorruptionError as \"stored log is corrupt: … (raw log: <path>)\", while the v3→v4 restore/publish path surfaces a bare SessionFormatError (#4549) — and the result cannot be added offline (the step is closed) — probe: fixtures/probes/dangling-tool-call.json",
+          "tool/call whose step closed without a tool/result: " + seqs.join(", ") +
+          " — next model request will 400; a call whose step is still open at the tail is the ordinary crash shape and is not reported here (the engine's interrupted-turn closers write its result on resume); on 0.1.7 the same inner assertion (\"step/end leaves unresolved tool call\") refuses the session from both entry points, but the wrappers differ and that is how you tell them apart: reading a stored v4 log surfaces it inside SessionPersistenceCorruptionError as \"stored log is corrupt: … (raw log: <path>)\", while the v3→v4 restore/publish path surfaces a bare SessionFormatError (#4549) — and the result cannot be added offline (the step is closed) — probe: fixtures/probes/dangling-tool-call.json",
         seqs,
         callIds: dangling.map((d) => d.callId),
       });

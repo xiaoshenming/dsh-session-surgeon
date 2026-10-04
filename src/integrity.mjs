@@ -5,9 +5,18 @@ function toolCallBlockId(block) {
   return undefined;
 }
 
-/** Official abort path pairs every tool/call with a tool/result.
- *  A call with no matching result survives load, then the next model request is 400.
- *  Detection only — repair must not invent a result or callId. */
+/**
+ * Official abort path pairs every tool/call with a tool/result, and the
+ * lifecycle fold only demands the pairing when the step closes
+ * (`assertNoUnresolvedTools(toolLifecycles, "step/end")`): a call whose step is
+ * still open at the end of the log is the ordinary crash shape, and the
+ * engine's own `interruptedTurnClosers()` writes its result on resume, so it
+ * must not be reported as a refusal — measured on a real 2970-event v4 log,
+ * which the shipped 0.2.0-rc.2 verifier accepts with the call unresolved.
+ * A call whose step did close without a result survives load but the next
+ * model request is 400, and reading a stored v4 log refuses it outright.
+ * Detection only — repair must not invent a result or callId.
+ */
 export function danglingToolCalls(events) {
   const results = new Set();
   for (const event of events) {
@@ -16,13 +25,41 @@ export function danglingToolCalls(events) {
     if (typeof id === "string") results.add(id);
   }
   const dangling = [];
+  let stepOpen = false;
+  let pending = [];
+  const flush = () => {
+    dangling.push(...pending);
+    pending = [];
+  };
   for (const event of events) {
-    if (event.type !== "tool/call") continue;
-    const id = event.data?.callId;
-    if (typeof id !== "string" || id === "" || !results.has(id)) {
-      dangling.push({ seq: event.seq, callId: typeof id === "string" ? id : "" });
+    switch (event.type) {
+      case "step/start":
+        flush();
+        stepOpen = true;
+        break;
+      case "step/end":
+        flush();
+        stepOpen = false;
+        break;
+      case "turn/start":
+      case "turn/end":
+        flush();
+        stepOpen = false;
+        break;
+      case "tool/call": {
+        const id = event.data?.callId;
+        if (typeof id === "string" && id !== "" && results.has(id)) break;
+        const hit = { seq: event.seq, callId: typeof id === "string" ? id : "" };
+        // An empty id is refused on the call itself, so it never waits for the step to close.
+        if (stepOpen && hit.callId !== "") pending.push(hit);
+        else dangling.push(hit);
+        break;
+      }
+      default:
+        break;
     }
   }
+  // Anything still pending belongs to the step that is open at the tail.
   return dangling;
 }
 
