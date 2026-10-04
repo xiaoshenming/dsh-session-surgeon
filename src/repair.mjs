@@ -8,6 +8,8 @@ import { stitchLiveWriterTail } from "./stitch.mjs";
 import { applyMigrationFixes, MIGRATES_V0_ON_LOAD } from "./migrate.mjs";
 import { applyForwardEventShims } from "./forward-events.mjs";
 import { disambiguateDuplicateToolCallIds } from "./duplicates.mjs";
+import { planPruneTail, prunePassHits } from "./prune-tail.mjs";
+import { turnStepImbalances } from "./turn-step.mjs";
 import { wrapFlatReplayStates } from "./replay-state.mjs";
 import { settleAssistantFields } from "./settle.mjs";
 import { INSTALLED_CATALOG } from "./runtime.mjs";
@@ -23,6 +25,7 @@ const DEFAULT_STEPS = {
   compressedRanges: true,
   v0Migration: true,
   duplicateToolCalls: true,
+  pruneTail: true,
   legacyReplayState: true,
   loneSurrogate: true,
   messageId: true,
@@ -181,6 +184,32 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
           " later duplicate advertised tool-call id(s) in the same step (#5909)",
       });
     }
+  }
+
+  if (steps.pruneTail && decoded.health === "prune-tail-outside-turn") {
+    const planned = planPruneTail(events);
+    if ("refuse" in planned) {
+      return { actions, events, header, mustWrite: false, refuse: planned.refuse };
+    }
+    const kept = events.slice(0, planned.cutIndex + 1);
+    // Cutting the tail must leave nothing else behind: the dropped rows are
+    // themselves step-scoped, so the sibling detector would have flagged them.
+    if (prunePassHits(kept).length > 0 || turnStepImbalances(kept).length > 0) {
+      return {
+        actions,
+        events,
+        header,
+        mustWrite: false,
+        refuse: "truncating the idle prune pass would leave another refusal behind, so repair would trade one unloadable log for another",
+      };
+    }
+    events = kept;
+    actions.push({
+      code: "prune-tail-outside-turn",
+      detail:
+        "dropped " + planned.dropped + " idle-prune event(s) (" + planned.types.join(", ") +
+        ") after turn/end at seq " + planned.cutSeq + " (#8812); every replacement only shadowed surface nodes that are still in the log, so no message, turn or tool result is lost",
+    });
   }
 
   if (steps.packedOverlap && (decoded.packedOverlapKept ?? 0) > 0) {

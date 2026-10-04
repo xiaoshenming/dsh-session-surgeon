@@ -14,9 +14,11 @@ import { settlementShapeHits } from "./settlement.mjs";
 import { catalogFactHits } from "./catalog-fact.mjs";
 import { literalPluginSourceHits } from "./message-shapes.mjs";
 import { turnStepImbalances, turnStepIssuesFrom } from "./turn-step.mjs";
+import { prunePassHits } from "./prune-tail.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
 export { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 export { turnStepImbalances } from "./turn-step.mjs";
+export { prunePassHits, planPruneTail } from "./prune-tail.mjs";
 
 const HEALTH_RANK = [
   "header-frame-corrupt",
@@ -39,6 +41,7 @@ const HEALTH_RANK = [
   "invalid-settlement-fields",
   "descriptor-catalog-fact",
   "v4-literal-plugin-source",
+  "prune-tail-outside-turn",
   "turn-end-while-step-open",
   "step-after-turn-end",
   "seq-gap-tail",
@@ -368,6 +371,24 @@ export function decodeSessionBuffer(buf) {
       });
     }
   }
+  const pruneHits = prunePassHits(finished.events);
+  if (pruneHits.length > 0) {
+    health = worse(health, "prune-tail-outside-turn");
+    if (!issues.some((i) => i.code === "prune-tail-outside-turn")) {
+      const seqs = pruneHits.map((hit) => hit.seq);
+      const shown = seqs.length > 12 ? seqs.slice(0, 12) : seqs;
+      issues.push({
+        code: "prune-tail-outside-turn",
+        message:
+          "replacement tool/result outside an open turn at seq " +
+          shown.join(", ") + (seqs.length > shown.length ? " (first " + shown.length + " of " + seqs.length + ")" : "") +
+          " — the idle tool-result pruner appends its replacements after turn/end, but the released fold routes every non-append tool/result through requireTurn() and refuses the whole session with \"tool/result is outside an open turn\" (#8812); the replacements only shadow surface nodes that are still in the log, so repair cuts back to the turn/end the pass followed and drops nothing else",
+        seqs: shown,
+        count: seqs.length,
+        types: [...new Set(pruneHits.map((hit) => hit.type))],
+      });
+    }
+  }
   const turnStepHits = turnStepImbalances(finished.events);
   for (const issue of turnStepIssuesFrom(turnStepHits)) {
     if (MIGRATES_V0_ON_LOAD) health = worse(health, issue.code);
@@ -416,6 +437,7 @@ export function decodeSessionBuffer(buf) {
     lastSeq: finished.events.length === 0 ? -1 : finished.events[finished.events.length - 1].seq,
     overflowEvents: (finished.overflow ?? []).length,
     turnStepImbalances: turnStepHits,
+    pruneHits,
     missingMembers,
     settlementHits,
     catalogHits,
