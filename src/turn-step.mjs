@@ -12,6 +12,15 @@
  * Detection only. Merging the split turn and splitting it in two are both local
  * rewrites with no unique answer inside the artifact, and splitting renumbers
  * every later seq and every declared range — so repair reports, never edits.
+ *
+ * One exception the released folds state explicitly: a `tool/result` whose
+ * `surfaceOp` is not the literal `"append"` is routed through `requireTurn()`
+ * alone (every released walker returns before `requireStep`), so its own
+ * `turn`/`step` are never compared against the open pair. An idle prune pass
+ * that lands inside a later open turn is therefore legal, and the only refusal
+ * left for those rows is "no turn is open at all", which `prune-tail.mjs`
+ * owns. Judging them by the closed-turn test here reported a false positive on
+ * a live 3311-event session that the shipped 0.2.0-rc.2 verifier accepts.
  */
 
 /** Types the official walker routes through `requireOpenStep` / `requireStep`. */
@@ -56,6 +65,8 @@ export function turnStepImbalances(events) {
         break;
       default:
         if (!STEP_TYPES.has(event.type)) break;
+        // Replacement tool/results never reach requireStep in the released folds.
+        if (event.type === "tool/result" && event.surfaceOp !== "append") break;
         if (afterClosedTurn(data)) {
           note(event, "step-after-turn-end", `${event.type} ${data.turn}/${data.step} continues turn ${data.turn}, which already ended`);
         } else if (event.type === "step/start" && data.turn === openTurn && openStep === null) {

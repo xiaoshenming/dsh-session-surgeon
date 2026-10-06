@@ -102,6 +102,30 @@ test("decodeSessionBuffer reports the imbalance and never edits the log", async 
   assert.equal(decoded.events.length, closedTurnContinues.length);
 });
 
+test("a replacement tool/result inside a later open turn is not a stray step", () => {
+  // The released folds route a non-append tool/result through requireTurn()
+  // alone, so the pruner may rewrite old results while a later turn is open and
+  // their own (long closed) turn/step are never compared. Measured on a live
+  // 3311-event session that the shipped 0.2.0-rc.2 verifier accepts.
+  const events = [
+    ev(0, "turn/start", { turn: 3 }),
+    ev(1, "step/start", { turn: 3, step: 1 }),
+    ev(2, "tool/result", { turn: 3, step: 1, message: { id: "r2", role: "tool", source: { kind: "tool", callId: "c1" }, content: [] } }),
+    ev(3, "step/end", { turn: 3, step: 1 }),
+    ev(4, "turn/end", { turn: 3, reason: { kind: "completed" } }),
+    ev(5, "turn/start", { turn: 8 }),
+    ev(6, "compaction/prune", { shadowedRange: { start: 2, end: 2 }, shadowedSeqs: [2] }),
+    { ...ev(7, "tool/result", { turn: 3, step: 1, message: { id: "r7", role: "tool", source: { kind: "tool", callId: "c1" }, content: [] } }), surfaceOp: { op: "replace", startSeq: 2, endSeq: 2 }, sourceEventSeqs: [2] },
+    ev(8, "step/start", { turn: 8, step: 1 }),
+    ev(9, "step/end", { turn: 8, step: 1 }),
+    ev(10, "turn/end", { turn: 8, reason: { kind: "completed" } }),
+  ];
+  assert.deepEqual(turnStepImbalances(events), []);
+  // The same rows with no turn open at all are still the #8812 refusal.
+  const withoutTurn = events.filter((event) => event.type !== "turn/start" || event.data.turn === 3);
+  assert.equal(turnStepImbalances(withoutTurn).length, 0, "the stray-step detector no longer owns this shape");
+});
+
 test("decodeSessionBuffer reports turn/end over an open step", async () => {
   const buf = await encodeSession({ header: HEADER, events: turnEndsWithStepOpen, packChunks: false });
   const decoded = decodeSessionBuffer(buf);
