@@ -4,7 +4,12 @@ All notable user-facing changes to dsh-session-surgeon. Dates are UTC.
 
 ## Unreleased
 
-> The rolling `#main` install reports **0.2.3** from 2026-10-04; this section is what that install carries.
+> The rolling `#main` install reports **0.2.4** from 2026-10-07; this section is what that install carries.
+
+### Fixed
+
+- **The retired `{kind:"plugin", plugin}` message source is repaired, not just reported** ([#7772](https://github.com/deepseek-ai/deepseek-harness/discussions/7772), [#6559](https://github.com/deepseek-ai/deepseek-harness/discussions/6559)). Format v4 admission demands a producer-owned kind (`format v4 message requires a producer-owned source kind`), so a log that still carries the wrapper is refused whole on read. The earlier note here claimed the successor kind "cannot be invented offline" — measured against the released converter, that is wrong: the v3→v4 stage derives it with `producerKind(plugin, role)`, a *total* function (a rename table, a first-party same-name set, a role-sensitive `@deepseek-ai/dsh-system-prompt` case, and the `plugin:<name>` fallback), and that function plus `rewritePluginSource` are byte-identical in `0.1.7-rc.2` and in the `0.2.0-rc.2` the desktop bundles. The repair applies exactly that function: it replaces `kind`, drops `plugin`, and keeps every other member (so `automationId` / `runId` / `scheduledFor` survive, which is what the writer's own patch produced). A source whose `plugin` is not a string is left alone, because there the released converter throws. Table drift is guarded by a test that drives the released stage itself and compares the kind it emits for every mapped name and role, and by another that shows the released fold refusing the wrapper and accepting the repaired row.
+- **`v4-literal-plugin-source` now sees `developer/message` and `system/message` too.** The official walker (`mapEventMessages`) hands those slots to the same converter, and our scan only covered `user/message`, `assistant/message`, `tool/result` and the two message arrays — so a wrapper in a developer or system message was invisible, which is also where the role-sensitive `system-prompt` rename lives.
 
 ### Fixed
 

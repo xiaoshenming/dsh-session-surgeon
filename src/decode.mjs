@@ -311,7 +311,7 @@ export function decodeSessionBuffer(buf) {
           message:
             "message source is still the retired {kind:\"plugin\", plugin} wrapper at seq " +
             seqs.join(", ") +
-            " — format v4 admission requires a producer-owned kind, so this harness refuses the whole log on read (#7772); the producer kind follows from the package name and cannot be invented offline, so repair only reports",
+            " — format v4 admission requires a producer-owned kind, so this harness refuses the whole log on read (#7772); repair writes the kind the released v3→v4 stage derives for that plugin name (its rename table plus the `plugin:<name>` fallback), keeping every other member, and leaves a source whose `plugin` is not a string alone",
           seqs,
           plugins: literalPlugin.map((hit) => hit.plugin),
         });

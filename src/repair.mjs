@@ -7,6 +7,7 @@ import { replaceLoneSurrogatesIn } from "./redact.mjs";
 import { stitchLiveWriterTail } from "./stitch.mjs";
 import { applyMigrationFixes, MIGRATES_V0_ON_LOAD } from "./migrate.mjs";
 import { applyForwardEventShims } from "./forward-events.mjs";
+import { rewriteLiteralPluginSources } from "./message-shapes.mjs";
 import { disambiguateDuplicateToolCallIds } from "./duplicates.mjs";
 import { planPruneTail, prunePassHits } from "./prune-tail.mjs";
 import { turnStepImbalances } from "./turn-step.mjs";
@@ -25,6 +26,7 @@ const DEFAULT_STEPS = {
   compressedRanges: true,
   v0Migration: true,
   duplicateToolCalls: true,
+  literalPluginSource: true,
   pruneTail: true,
   legacyReplayState: true,
   loneSurrogate: true,
@@ -210,6 +212,19 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
         "dropped " + planned.dropped + " idle-prune event(s) (" + planned.types.join(", ") +
         ") after turn/end at seq " + planned.cutSeq + " (#8812); every replacement only shadowed surface nodes that are still in the log, so no message, turn or tool result is lost",
     });
+  }
+
+  if (steps.literalPluginSource && decoded.health === "v4-literal-plugin-source") {
+    const literal = rewriteLiteralPluginSources(events);
+    if (literal.rewritten > 0) {
+      events = literal.value;
+      actions.push({
+        code: "v4-literal-plugin-source",
+        detail:
+          "replaced " + literal.rewritten +
+          " retired {kind:\"plugin\", plugin} message source(s) with the producer kind the released v3→v4 stage derives for that name (#7772)",
+      });
+    }
   }
 
   if (steps.packedOverlap && (decoded.packedOverlapKept ?? 0) > 0) {
