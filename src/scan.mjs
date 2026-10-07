@@ -65,8 +65,12 @@ export async function scanHeader(entry) {
     frames: frames.length,
     failedFrames: failed,
     health,
-    header: classified.header,
-    error: classified.ok ? undefined : classified.error,
+    // Absent members are omitted, never present-as-`undefined`: the payload has
+    // to be lossless JSON, and one `undefined` member made the harness refuse
+    // the entire report ("value is not lossless JSON"). A healthy session used
+    // to carry `error: undefined` on every entry, so session_scan never worked.
+    ...(classified.ok ? { header: classified.header } : {}),
+    ...(classified.ok ? {} : { error: classified.error }),
     flags,
   };
 }

@@ -69,7 +69,10 @@ function emptyResult({ headerClass, frames, tornStart, issues, failedFrames, hea
     header: headerClass.header ?? null,
     headerClass,
     frames,
-    tornStart,
+    // Omit an absent torn tail instead of carrying `undefined`. The tool payload
+    // has to be lossless JSON and the harness rejects a value holding
+    // `undefined` outright ("value is not lossless JSON" for the whole report).
+    ...(tornStart === undefined ? {} : { tornStart }),
     events: [],
     overflow: [],
     issues,
@@ -80,6 +83,13 @@ function emptyResult({ headerClass, frames, tornStart, issues, failedFrames, hea
     failedFrames,
     unknownTypes,
     lastSeq: -1,
+    // Callers read these as arrays (`inspectEntry` iterates turnStepImbalances).
+    // An early return that omitted them made inspect throw "not iterable".
+    turnStepImbalances: [],
+    pruneHits: [],
+    missingMembers: [],
+    settlementHits: [],
+    catalogHits: [],
     health,
   };
 }

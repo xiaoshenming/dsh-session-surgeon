@@ -8,8 +8,38 @@ import { createRequire } from "node:module";
 import { delimiter, dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+/** The harness package that owns the session runtime, for one install prefix. */
+function harnessAnchors(dir) {
+  return [
+    join(dir, "node_modules", "@deepseek-ai", "dsh", "package.json"),
+    // Desktop/Electron keeps the app's node_modules beside the executable.
+    join(dir, "..", "lib", "node_modules", "@deepseek-ai", "dsh", "package.json"),
+  ];
+}
+
+/**
+ * Resolution anchors for the installed harness, most specific first.
+ *
+ * A PATH hit on the `dsh` launcher is not enough: under the npm-global layout
+ * (`%APPDATA%/npm/dsh.cmd`) the launcher's own directory has no
+ * `@deepseek-ai/dsh-session`, because the harness nests its runtime under
+ * `node_modules/@deepseek-ai/dsh/node_modules/`. Resolving from the harness
+ * package itself is what actually finds it, so every prefix contributes both
+ * the launcher and the harness package as anchors.
+ */
 export function dshRequires() {
-  const requires = [createRequire(import.meta.url)];
+  const requires = [];
+  const seen = new Set();
+  const add = (anchor) => {
+    if (!anchor || seen.has(anchor)) return;
+    seen.add(anchor);
+    try {
+      requires.push(createRequire(anchor));
+    } catch {
+      // Ignore stale or non-file anchors.
+    }
+  };
+  add(import.meta.url);
   const dirs = (process.env.PATH ?? "").split(delimiter);
   if (process.execPath) {
     // Desktop/Electron hosts run the plugin beside the app's node_modules;
@@ -20,12 +50,14 @@ export function dshRequires() {
   for (const dir of dirs) {
     if (dir === "") continue;
     const candidate = join(dir, process.platform === "win32" ? "dsh.cmd" : "dsh");
-    if (!existsSync(candidate)) continue;
-    try {
-      requires.push(createRequire(realpathSync(candidate)));
-    } catch {
-      // Ignore stale or non-file PATH entries.
+    if (existsSync(candidate)) {
+      try {
+        add(realpathSync(candidate));
+      } catch {
+        // Ignore stale or non-file PATH entries.
+      }
     }
+    for (const anchor of harnessAnchors(dir)) add(anchor);
   }
   return requires;
 }
@@ -37,13 +69,41 @@ async function loadSessionModule() {
       const loaded = await import(pathToFileURL(root).href);
       return { root, loaded };
     } catch {
-      // Try the next resolver.
+      // The session package is nested inside the harness package; re-anchor on
+      // the harness itself before giving up on this resolver.
+      try {
+        const harness = requireFrom.resolve("@deepseek-ai/dsh/package.json");
+        const nested = createRequire(harness);
+        const root = nested.resolve("@deepseek-ai/dsh-session");
+        const loaded = await import(pathToFileURL(root).href);
+        return { root, loaded };
+      } catch {
+        // Try the next resolver.
+      }
     }
   }
   return null;
 }
 
 const session = await loadSessionModule();
+
+/**
+ * True when the installed harness session runtime was found. When false every
+ * verdict below rests on the v0 fallback, which is a guess about the caller's
+ * machine rather than a measurement of it — reports say so instead of dressing
+ * a v4 log up as `foreign-version`.
+ */
+export const SESSION_RUNTIME_RESOLVED = session !== null;
+
+/** Install facts a report can carry, so a resolution failure is visible. */
+export function sessionRuntimeInfo() {
+  return {
+    resolved: SESSION_RUNTIME_RESOLVED,
+    formatVersion: SESSION_FORMAT_VERSION,
+    sessionModulePath: SESSION_MODULE_PATH,
+    nativeSeqRanges: SUPPORTS_NATIVE_SEQ_RANGES,
+  };
+}
 
 /** True when this machine's harness expands [start,end] sourceEventSeqs on read. */
 export const SUPPORTS_NATIVE_SEQ_RANGES = typeof session?.loaded?.decodeSeqRanges === "function";

@@ -47,7 +47,6 @@ export async function inspectEntry(entry) {
       ...entry,
       health: entry.kind === "jsonl" ? "raw-jsonl" : "orphan-tmp",
       issues: [{ code: "unsupported", message: "inspect supports zstd session logs only" }],
-      events: undefined,
     };
   }
   const buf = await readFile(entry.file);
@@ -60,7 +59,10 @@ export async function inspectEntry(entry) {
   if (decoded.packedRows) flags.push("packed-expanded");
   const dangling = danglingToolCalls(decoded.events);
   if (dangling.length) flags.push("dangling-tool-call");
-  const turnStep = decoded.turnStepImbalances;
+  // An early decode return (foreign header, no frame, corrupt first frame) may
+  // omit this field; iterating it directly threw "turnStepImbalances is not
+  // iterable" instead of reporting the header verdict that caused the abort.
+  const turnStep = decoded.turnStepImbalances ?? [];
   for (const hit of turnStep) if (!flags.includes(hit.code)) flags.push(hit.code);
   if (decoded.pruneHits?.length) flags.push("prune-tail-outside-turn");
   if (decoded.missingMembers.length) flags.push("v0-missing-member");
@@ -84,12 +86,14 @@ export async function inspectEntry(entry) {
     frames: decoded.frames.length,
     failedFrames: decoded.failedFrames,
     torn: decoded.tornStart !== undefined,
-    tornStart: decoded.tornStart,
+    // Both of these are legitimately absent on a healthy log (no torn tail, no
+    // overflow), and an `undefined` member is not lossless JSON — omit instead.
+    ...(decoded.tornStart === undefined ? {} : { tornStart: decoded.tornStart }),
     logicalLines: decoded.logicalLines,
     logicalEvents: decoded.events.length,
     lastSeq: decoded.lastSeq,
     overflowEvents: decoded.overflowEvents ?? decoded.overflow?.length ?? 0,
-    overflowLastSeq: decoded.overflow?.length ? decoded.overflow.at(-1).seq : undefined,
+    ...(decoded.overflow?.length ? { overflowLastSeq: decoded.overflow.at(-1).seq } : {}),
     packedRows: decoded.packedRows,
     packedOverlapKept: decoded.packedOverlapKept ?? 0,
     badLines: decoded.issues.filter((i) => i.code === "unparsable-line").length,
