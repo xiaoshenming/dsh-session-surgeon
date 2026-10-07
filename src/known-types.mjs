@@ -4,7 +4,7 @@
  * not dropped.
  */
 import { pathToFileURL } from "node:url";
-import { catalogModulePath, dshRequires } from "./runtime.mjs";
+import { catalogModulePath, resolveInstalledPackage } from "./runtime.mjs";
 
 const FALLBACK_SESSION_EVENT_TYPES = [
   "agent-preset/selected",
@@ -58,9 +58,9 @@ const FALLBACK_SESSION_EVENT_TYPES = [
 ];
 
 async function installedCatalog() {
-  for (const requireFrom of dshRequires()) {
+  const root = resolveInstalledPackage("@deepseek-ai/dsh-session");
+  if (root !== null) {
     try {
-      const root = requireFrom.resolve("@deepseek-ai/dsh-session");
       const modulePath = catalogModulePath(root);
       const loaded = await import(pathToFileURL(modulePath).href);
       const catalog = loaded.KNOWN_SESSION_EVENT_TYPES;
@@ -68,7 +68,7 @@ async function installedCatalog() {
         return { catalog: new Set(catalog), source: modulePath };
       }
     } catch {
-      // Try the next resolver; standalone installs may not expose core peers.
+      // A layout without the catalog file keeps the fallback vocabulary.
     }
   }
   return { catalog: new Set(FALLBACK_SESSION_EVENT_TYPES), source: "fallback" };

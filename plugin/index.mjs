@@ -30,7 +30,8 @@ const jsonOutput = {
  *
  * Normalizing at the boundary is the guarantee: `undefined` members are omitted
  * (JSON has no `undefined`), and an array hole becomes `null` because a hole is
- * not representable either.
+ * not representable either — `Array.from`, not `map`, because `map` skips holes
+ * and the harness refuses a value that still holds one.
  */
 export function toLosslessJson(value, seen = new WeakSet()) {
   if (value === null) return null;
@@ -46,7 +47,9 @@ export function toLosslessJson(value, seen = new WeakSet()) {
   seen.add(value);
   try {
     if (Array.isArray(value)) {
-      return value.map((item) => {
+      // `Array.from` visits holes; `map` skips them, and a hole is not JSON
+      // either, so a hole has to become `null` like any other absent member.
+      return Array.from(value, (item) => {
         const normalized = toLosslessJson(item, seen);
         return normalized === undefined ? null : normalized;
       });

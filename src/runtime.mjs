@@ -62,27 +62,43 @@ export function dshRequires() {
   return requires;
 }
 
-async function loadSessionModule() {
+/**
+ * Resolve one installed `@deepseek-ai` package through the harness that owns it.
+ *
+ * A direct resolve is tried first; when that misses, the harness package is
+ * resolved and used as the anchor, because npm-global and pnpm layouts both nest
+ * the runtime under `node_modules/@deepseek-ai/dsh/node_modules/` where a
+ * resolver anchored anywhere else never looks. Every caller that needs an
+ * installed peer has to go through here — resolving the session package one way
+ * in `runtime.mjs` and another way in `known-types.mjs` is how the event catalog
+ * silently stayed on its fallback list while the runtime itself resolved.
+ * @returns the resolved file path, or null when no anchor finds it.
+ */
+export function resolveInstalledPackage(specifier) {
   for (const requireFrom of dshRequires()) {
     try {
-      const root = requireFrom.resolve("@deepseek-ai/dsh-session");
-      const loaded = await import(pathToFileURL(root).href);
-      return { root, loaded };
+      return requireFrom.resolve(specifier);
     } catch {
-      // The session package is nested inside the harness package; re-anchor on
-      // the harness itself before giving up on this resolver.
-      try {
-        const harness = requireFrom.resolve("@deepseek-ai/dsh/package.json");
-        const nested = createRequire(harness);
-        const root = nested.resolve("@deepseek-ai/dsh-session");
-        const loaded = await import(pathToFileURL(root).href);
-        return { root, loaded };
-      } catch {
-        // Try the next resolver.
-      }
+      // Fall through to the harness-anchored attempt.
+    }
+    try {
+      const nested = createRequire(requireFrom.resolve("@deepseek-ai/dsh/package.json"));
+      return nested.resolve(specifier);
+    } catch {
+      // Try the next resolver.
     }
   }
   return null;
+}
+
+async function loadSessionModule() {
+  const root = resolveInstalledPackage("@deepseek-ai/dsh-session");
+  if (root === null) return null;
+  try {
+    return { root, loaded: await import(pathToFileURL(root).href) };
+  } catch {
+    return null;
+  }
 }
 
 const session = await loadSessionModule();

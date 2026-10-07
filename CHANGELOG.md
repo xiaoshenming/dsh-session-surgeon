@@ -4,7 +4,13 @@ All notable user-facing changes to dsh-session-surgeon. Dates are UTC.
 
 ## Unreleased
 
-> The rolling `#main` install reports **0.2.4** from 2026-10-07; this section is what that install carries.
+> The rolling `#main` install reports **0.2.5** from 2026-10-08; this section is what that install carries.
+
+### Fixed
+
+- **The agent tools work on a standard install again** ([#7](https://github.com/xiaoshenming/dsh-session-surgeon/pull/7), reported and started by @Error0422-bit). Three independent defects made `session_scan` / `session_inspect` / `session_repair` fail with `value is not lossless JSON` or a bare crash. The runtime probe only looked for `@deepseek-ai/dsh-session` next to the `dsh` launcher on `PATH`, so on an npm-global install — where the harness nests its runtime under `node_modules/@deepseek-ai/dsh/node_modules/` — resolution failed, the format version fell back to 0, and every v4 session was reported `foreign-version`. Report payloads carried `undefined` members (`error` on every healthy entry, `tornStart`, `overflowLastSeq`, `events`), which the harness's own `snapshotJsonValue` refuses *whole*, and an early decode return omitted the arrays `inspect` iterates, so a header-only verdict ended in `turnStep is not iterable`. Reproduced here on a machine with no `dsh` on `PATH`: `inspect` crashed exactly that way before the fix and reports normally after it. The probe now anchors on the harness package itself, absent members are omitted instead of carried, the early-return payload carries every array its callers read, and one `toLosslessJson` boundary normalizes whatever a tool returns.
+- **The event catalog now comes from the install the runtime resolved.** The contributor's probe fixed `runtime.mjs`; `known-types.mjs` resolved the same package its own way and kept missing it, so `KNOWN_SESSION_EVENT_TYPES` silently stayed on the 48-type fallback while the runtime itself resolved — `model/selection` was missing from the vocabulary and a test that only runs once the runtime resolves failed. Both now go through one `resolveInstalledPackage()`, and the catalog loads (59 types here, from `lib/types/known-event-types.js`).
+- **`toLosslessJson` no longer leaves array holes behind.** The boundary claimed a hole becomes `null`, but it used `Array.prototype.map`, which *skips* holes, so a sparse array came back still sparse and the harness refused it — verified against the harness's own `snapshotJsonValue`: `[1, , 3]` was refused before the fix and accepted after. A test pins each shape (hole, `-0`, `Infinity`, `NaN`, `undefined` member, cycle) to that predicate, so the boundary is measured rather than asserted.
 
 ### Fixed
 
