@@ -2,6 +2,7 @@ import { defaultSessionRoot, scanAll, scanHeader } from "../src/scan.mjs";
 import { inspectById, pickSession } from "../src/inspect.mjs";
 import { repairFile } from "../src/repair.mjs";
 import { listSessionFiles } from "../src/find.mjs";
+import { sessionRuntimeInfo } from "../src/runtime.mjs";
 import { makeRoutes } from "./routes.mjs";
 
 export const name = "session-surgeon";
@@ -16,6 +17,60 @@ const jsonOutput = {
   schema: { type: "json" },
   render: renderJson,
 };
+
+/**
+ * Detach a report into lossless JSON.
+ *
+ * The harness snapshots every tool value with `walkJsonValue`
+ * (`@deepseek-ai/dsh-util-values`) and rejects a value that holds `undefined`,
+ * a non-finite number, `-0`, a non-plain object or a cycle — as
+ * `returned invalid output: value is not lossless JSON`, discarding the whole
+ * report. A single absent optional field (a healthy log has no `tornStart` and
+ * no `error`) therefore used to take down every one of these tools.
+ *
+ * Normalizing at the boundary is the guarantee: `undefined` members are omitted
+ * (JSON has no `undefined`), and an array hole becomes `null` because a hole is
+ * not representable either.
+ */
+export function toLosslessJson(value, seen = new WeakSet()) {
+  if (value === null) return null;
+  const type = typeof value;
+  if (type === "string" || type === "boolean") return value;
+  if (type === "number") {
+    if (!Number.isFinite(value)) return null;
+    return Object.is(value, -0) ? 0 : value;
+  }
+  // undefined / function / symbol / bigint are not JSON and are dropped.
+  if (type !== "object") return undefined;
+  if (seen.has(value)) return undefined;
+  seen.add(value);
+  try {
+    if (Array.isArray(value)) {
+      return value.map((item) => {
+        const normalized = toLosslessJson(item, seen);
+        return normalized === undefined ? null : normalized;
+      });
+    }
+    const out = {};
+    for (const [key, item] of Object.entries(value)) {
+      const normalized = toLosslessJson(item, seen);
+      if (normalized !== undefined) out[key] = normalized;
+    }
+    return out;
+  } finally {
+    seen.delete(value);
+  }
+}
+
+/**
+ * Every registered tool returns lossless JSON with this machine's install facts
+ * attached, so a runtime that could not be resolved is visible in the report
+ * instead of silently turning every session into a `foreign-version` verdict.
+ */
+function toolOutput(value) {
+  const base = value && typeof value === "object" && !Array.isArray(value) ? value : { value };
+  return toLosslessJson({ ...base, runtime: sessionRuntimeInfo() });
+}
 
 async function resolveFile(root, id) {
   const entries = await listSessionFiles(root);
@@ -73,7 +128,7 @@ async function registerTools(ctx) {
       output: jsonOutput,
       async execute(args) {
         const root = args.root || defaultSessionRoot();
-        return scanAll(root);
+        return toolOutput(await scanAll(root));
       },
     }),
   );
@@ -89,7 +144,7 @@ async function registerTools(ctx) {
       },
       output: jsonOutput,
       async execute(args) {
-        return inspectById(args.root || defaultSessionRoot(), args.id);
+        return toolOutput(await inspectById(args.root || defaultSessionRoot(), args.id));
       },
     }),
   );
@@ -107,7 +162,7 @@ async function registerTools(ctx) {
       output: jsonOutput,
       async execute(args) {
         const file = await resolveFile(args.root || defaultSessionRoot(), args.id);
-        return repairFile(file, { dryRun: args.apply !== true });
+        return toolOutput(await repairFile(file, { dryRun: args.apply !== true }));
       },
     }),
   );
