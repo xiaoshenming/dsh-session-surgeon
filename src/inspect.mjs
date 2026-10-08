@@ -65,6 +65,7 @@ export async function inspectEntry(entry) {
   const turnStep = decoded.turnStepImbalances ?? [];
   for (const hit of turnStep) if (!flags.includes(hit.code)) flags.push(hit.code);
   if (decoded.pruneHits?.length) flags.push("prune-tail-outside-turn");
+  if (decoded.producerSourceHits?.length) flags.push("producer-source-invalid");
   if (decoded.missingMembers.length) flags.push("v0-missing-member");
   if (decoded.settlementHits.length) flags.push("invalid-settlement-fields");
   if (decoded.catalogHits.length) flags.push("descriptor-catalog-fact");

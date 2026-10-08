@@ -12,7 +12,7 @@ import { MIGRATES_V0_ON_LOAD, migrationRefusalIssues } from "./migrate.mjs";
 import { missingMemberHits } from "./released-shape.mjs";
 import { settlementShapeHits } from "./settlement.mjs";
 import { catalogFactHits } from "./catalog-fact.mjs";
-import { literalPluginSourceHits } from "./message-shapes.mjs";
+import { literalPluginSourceHits, producerSourceHits } from "./message-shapes.mjs";
 import { turnStepImbalances, turnStepIssuesFrom } from "./turn-step.mjs";
 import { prunePassHits } from "./prune-tail.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
@@ -41,6 +41,7 @@ const HEALTH_RANK = [
   "invalid-settlement-fields",
   "descriptor-catalog-fact",
   "v4-literal-plugin-source",
+  "producer-source-invalid",
   "prune-tail-outside-turn",
   "turn-end-while-step-open",
   "step-after-turn-end",
@@ -399,6 +400,26 @@ export function decodeSessionBuffer(buf) {
       });
     }
   }
+  const sourceHits = finished.header && finished.header.version >= 4 ? producerSourceHits(finished.events) : [];
+  if (sourceHits.length > 0) {
+    health = worse(health, "producer-source-invalid");
+    if (!issues.some((i) => i.code === "producer-source-invalid")) {
+      const seqs = sourceHits.map((hit) => hit.seq);
+      const shown = seqs.length > 12 ? seqs.slice(0, 12) : seqs;
+      issues.push({
+        code: "producer-source-invalid",
+        message:
+          "message source the released v4 admission refuses at seq " +
+          shown.join(", ") + (seqs.length > shown.length ? " (first " + shown.length + " of " + seqs.length + ")" : "") +
+          " — " + sourceHits[0].problem +
+          "; the reader refuses the whole log with \"format v4 message requires a producer-owned source kind\" (or the slot's own message) and the correct value is not recoverable from the artifact, so repair only reports",
+        seqs: shown,
+        count: seqs.length,
+        problems: [...new Set(sourceHits.map((hit) => hit.problem))],
+        types: [...new Set(sourceHits.map((hit) => hit.type))],
+      });
+    }
+  }
   const turnStepHits = turnStepImbalances(finished.events);
   for (const issue of turnStepIssuesFrom(turnStepHits)) {
     if (MIGRATES_V0_ON_LOAD) health = worse(health, issue.code);
@@ -447,6 +468,7 @@ export function decodeSessionBuffer(buf) {
     lastSeq: finished.events.length === 0 ? -1 : finished.events[finished.events.length - 1].seq,
     overflowEvents: (finished.overflow ?? []).length,
     turnStepImbalances: turnStepHits,
+    producerSourceHits: sourceHits,
     pruneHits,
     missingMembers,
     settlementHits,

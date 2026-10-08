@@ -5,10 +5,13 @@ import {
   insertedMessageHits,
   literalPluginSourceHits,
   producerKindFor,
+  producerSourceHits,
   renameRetiredSourceKinds,
   retiredSourceKindHits,
   rewriteLiteralPluginSources,
 } from "../src/message-shapes.mjs";
+import { KNOWN_SESSION_EVENT_TYPES } from "../src/known-types.mjs";
+import { SESSION_MODULE_PATH } from "../src/runtime.mjs";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -270,6 +273,112 @@ test("the released fold refuses the wrapper and accepts the repaired row", async
   const fold = (list) => v3to4.assertReleasedV4Relationships({ events: list, header, inheritedEventCount: 0 }, known);
   assert.throws(() => fold(events), /producer-owned source kind/, "the released fold refuses the wrapper");
   fold(rewriteLiteralPluginSources(events).value);
+});
+
+/** One structurally valid v4 log whose single message row carries `source`. */
+function sourceLog(slot, source) {
+  const rows = [
+    ["turn/start", { turn: 1 }],
+    ["step/start", { turn: 1, step: 1 }],
+  ];
+  const message = (role, extra = {}) => ({ id: "m2", role, source, content: [{ type: "text", text: "hi" }], ...extra });
+  if (slot === "user/message") rows.push([slot, message("user"), { surfaceOp: "append" }]);
+  else if (slot === "tool/result") {
+    rows.push(
+      ["assistant/message", { turn: 1, step: 1, message: { id: "a2", role: "assistant", source: { kind: "model", provider: "p", model: "m" }, content: [{ type: "tool-call", id: "c1", name: "t", arguments: "{}" }] }, stream: [] }, { surfaceOp: "append" }],
+      ["tool/call", { turn: 1, step: 1, callId: "c1", name: "t", arguments: "{}" }],
+      [slot, { turn: 1, step: 1, message: message("tool", { toolCallId: "c1" }) }, { surfaceOp: "append" }],
+    );
+  } else {
+    const role = slot.split("/")[0];
+    const data = { turn: 1, step: 1, message: message(role) };
+    if (slot === "assistant/message") data.stream = [];
+    rows.push([slot, data, { surfaceOp: "append" }]);
+  }
+  rows.push(["step/end", { turn: 1, step: 1 }], ["turn/end", { turn: 1, reason: { kind: "completed" } }]);
+  return rows.map(([type, data, extra = {}], seq) => ({ type, seq, time: seq + 1, data, ...extra }));
+}
+
+test("a source the reader refuses is reported for every message slot", async (t) => {
+  const slots = {
+    "user/message": { kind: "plugin:x" },
+    "developer/message": { kind: "plugin:x" },
+    "system/message": { kind: "system-prompt" },
+    "assistant/message": { kind: "model", provider: "p", model: "m" },
+    "tool/result": { kind: "tool", callId: "c1" },
+  };
+  const variants = [
+    ["source missing", undefined],
+    ["source null", null],
+    ["source string", "user"],
+    ["kind missing", { form: "notice" }],
+    ["kind empty", { kind: "" }],
+    ["kind number", { kind: 7 }],
+  ];
+  for (const [slot, baseline] of Object.entries(slots)) {
+    assert.deepEqual(producerSourceHits(sourceLog(slot, baseline)), [], slot + " baseline must be clean");
+    for (const [label, source] of variants) {
+      const hits = producerSourceHits(sourceLog(slot, source));
+      assert.equal(hits.length, 1, slot + " / " + label + " must be reported");
+      assert.equal(hits[0].type, slot);
+    }
+    // A kind the slot does not accept is refused too (measured, not assumed).
+    if (slot === "system/message" || slot === "assistant/message" || slot === "tool/result") {
+      const wrong = { kind: slot === "tool/result" ? "model" : "plugin:x" };
+      const hits = producerSourceHits(sourceLog(slot, wrong));
+      assert.equal(hits.length, 1, slot + " must reject a kind the slot does not accept");
+      assert.match(hits[0].problem, /requires/);
+    }
+  }
+});
+
+test("the reported rows are exactly the ones the released gates refuse", async (t) => {
+  const { Session } = SESSION_MODULE_PATH === null ? {} : await import(SESSION_MODULE_PATH);
+  const pnpm = join(new URL("..", import.meta.url).pathname, "node_modules", ".pnpm");
+  let dirs = [];
+  try {
+    dirs = readdirSync(pnpm).filter((name) => name.startsWith("@deepseek-ai+dsh-session-format-v3-to-v4@"));
+  } catch {
+    dirs = [];
+  }
+  const dir = dirs.sort().at(-1);
+  if (dir === undefined || Session === undefined) {
+    t.skip("official reader not resolvable");
+    return;
+  }
+  const v3to4 = await import(pathToFileURL(join(pnpm, dir, "node_modules", "@deepseek-ai", "dsh-session-format-v3-to-v4", "lib", "index.js")).href);
+  const header = { version: 4, id: "session-source", createdAt: 1, cwd: "/tmp/surgeon", isSeeded: false, delegationDepth: 0 };
+  // Both read-time gates: the relationship fold and the seed constructor.
+  const refused = (events) => {
+    try {
+      v3to4.assertReleasedV4Relationships({ events, header, inheritedEventCount: 0 }, KNOWN_SESSION_EVENT_TYPES);
+    } catch {
+      return true;
+    }
+    try {
+      Session.fromRestore(header.id, events, header, 0, "detached", []);
+    } catch {
+      return true;
+    }
+    return false;
+  };
+  const cases = [
+    ["user/message", { kind: "plugin:x" }],
+    ["user/message", undefined],
+    ["user/message", { kind: "" }],
+    ["developer/message", { form: "notice" }],
+    ["system/message", { kind: "system-prompt" }],
+    ["system/message", { kind: "plugin:x" }],
+    ["assistant/message", { kind: "model", provider: "p", model: "m" }],
+    ["assistant/message", { kind: "plugin:x" }],
+    ["tool/result", { kind: "tool", callId: "c1" }],
+    ["tool/result", { kind: "plugin:x" }],
+  ];
+  for (const [slot, source] of cases) {
+    const events = sourceLog(slot, source);
+    const hits = producerSourceHits(events);
+    assert.equal(hits.length > 0, refused(events), slot + " / " + JSON.stringify(source));
+  }
 });
 
 test("the same retired wrapper is legal below v4: the v3->v4 stage lifts it (#7772)", async () => {

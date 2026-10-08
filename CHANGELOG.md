@@ -4,7 +4,11 @@ All notable user-facing changes to dsh-session-surgeon. Dates are UTC.
 
 ## Unreleased
 
-> The rolling `#main` install reports **0.2.5** from 2026-10-08; this section is what that install carries.
+> The rolling `#main` install reports **0.2.6** from 2026-10-08; this section is what that install carries.
+
+### Fixed
+
+- **A message source the reader refuses is no longer reported as `ok`** (new health code `producer-source-invalid`). Format v4 admission runs `assertV4MessageSources` over every message slot on every read and refuses the whole log when `source` is not an object, or `kind` is absent, empty, not a string, or not the kind the slot demands. Our scanner only knew the retired `{kind:"plugin"}` literal, so a row with no `kind` at all — the shape reported in [#9099](https://github.com/deepseek-ai/deepseek-harness/discussions/9099) — read as healthy while the loader refused the file: a false negative, which is worse than a crash because nothing tells the user to look. The rules are measured against the reader shipped in the desktop's `0.2.0-rc.2` bundle rather than assumed, and they differ per slot: `user/message` and `developer/message` accept any non-empty kind except the `plugin` literal, `system/message` accepts only `system-prompt`, `assistant/message` only `model`, and `tool/result` only `tool`. Repair still writes nothing here: an absent or wrong kind has no unique successor inside the artifact, which is exactly why the `plugin` literal keeps its own repairable code and is not folded into this one. A test asserts the detector fires **exactly** when the released gates refuse — both `assertReleasedV4Relationships` and the seed constructor `Session.fromRestore` — across ten measured slot/variant cases, and the four sessions in this machine's store still read unchanged.
 
 ### Fixed
 
