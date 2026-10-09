@@ -6,7 +6,7 @@ import { decodeSessionBuffer } from "../src/decode.mjs";
 import { applyRepair } from "../src/repair.mjs";
 import { applyCompact } from "../src/compact.mjs";
 import { exportSession, writeExport } from "../src/export.mjs";
-import { formatIndexText, formatInspectText, formatRepairText, formatScanText } from "../src/format.mjs";
+import { formatCompactText, formatIndexText, formatInspectText, formatRepairText, formatScanText } from "../src/format.mjs";
 
 function usage() {
   console.log(`dsh-session-surgeon — repair DeepSeek Harness sessions that refuse to load
@@ -134,7 +134,7 @@ try {
     if (!entry.file) throw Object.assign(new Error("no canonical session file"), { code: "not-found" });
     const decoded = decodeSessionBuffer(await readFile(entry.file));
     const result = await applyCompact({ file: entry.file, decoded, keepLastTurns, dryRun: !apply });
-    emit(format, result, formatRepairText(result));
+    emit(format, result, formatCompactText(result));
     process.exit(result.plan.refuse ? 1 : 0);
   }
 

@@ -134,8 +134,11 @@
 
 ## 3. compact / export（不是 repair）
 
-- `compact --keep-last-turns N`：前面的 turn 收成摘要，保留最近 N 个完整 turn。产出必须仍是合法 session 文件。seq 不连续 / 官方会拒读时 refuse，不要在第二个写者还活着时重排 seq。先停写者、先 repair。
-- 切片：每个切片自己有 header，seq 从 0 重排，`seedLength` / `parentSession` 视情况填写。
+- `compact --keep-last-turns N`：丢掉前面的 turn，保留最近 N 个完整 turn（**不是**收成摘要 —— 摘要要走 `compaction/*`，本工具不插）。产出必须仍是合法 session 文件。seq 不连续 / 官方会拒读时 refuse，不要在第二个写者还活着时重排 seq。先停写者、先 repair。
+- 切片必须整体重编号，released fold 是逐条比对的：`turn/start` 必须带**下一个** turn 号、`step/start` 必须带该 turn 的**下一个** step 号（`Relationships.accept` 的 `turn/start does not open the expected turn` / `step/start does not match the open turn and next step`），所以 turn/step 都从 1 重排，`assistant/message` / `tool/call` / `tool/result` 的 `data.turn`/`data.step` 跟着改。
+- 按 seq 指向别的事件的成员要跟着平移 `-from`（实测清单：事件级的 `surfaceOp`（`{op:"replace",startSeq,endSeq}`）、`sourceEventSeqs`；`data` 里的 `shadowedSeqs`、`shadowedRange`、`headerSeq`、`messageSeqs`、`throughSeq`（delivery）、`sourceEventSeq`（command/done）、`protectedHead`）。指到被丢掉的事件时没有唯一答案 → refuse（保留原文件）。
+- 有继承前缀（`isSeeded` 或 v0/v1 的 `seedLength > 0`）时 refuse：丢掉前缀没有定义好的语义。
+- header 原样保留：`seedLength` 是 v0/v1 字段，v2+ 的 header 闸门只认 `version/id/createdAt/isSeeded/delegationDepth`（可选 `cwd/parentSession/origin/agentPreset`），**不许**出现 `seedLength`（早先的 compact 就是在这里写出过加载器拒读的文件）。
 - `export --redact`：默认剥 `sk-*`、PEM、绝对 home 路径；`--no-redact` 必须显式。
 
 #317 那种「文件合法但大到加载爆栈」，走 compact，不要在 repair 里静默丢历史。

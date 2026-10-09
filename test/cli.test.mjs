@@ -65,6 +65,27 @@ test("compact with bad N exits 2", async () => {
   assert.equal(r.status, 2);
 });
 
+test("compact previews and applies a fixture", async () => {
+  const root = await fixtureRoot();
+  const id = "session-synthetic-healthy-packed";
+  const file = join(root, "--tmp--", id, "session.jsonl.zstd");
+  const before = await readFile(file);
+
+  const preview = run(["compact", id, root, "--keep-last-turns", "1", "--format", "text"]);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.match(preview.stdout, /dry-run \(no write\)/);
+  assert.ok(!preview.stdout.includes("undefined"), preview.stdout);
+  assert.deepEqual(await readFile(file), before, "preview must not write");
+
+  const applied = run(["compact", id, root, "--keep-last-turns", "1", "--apply", "--format", "text"]);
+  assert.equal(applied.status, 0, applied.stderr);
+  assert.match(applied.stdout, /applied|no write/);
+  const after = await readFile(file);
+  if (Buffer.compare(before, after) !== 0) {
+    assert.match(applied.stdout, /applied/);
+  }
+});
+
 test("repair without --apply does not change bytes", async () => {
   const root = await fixtureRoot();
   const file = join(root, "--tmp--", "session-synthetic-torn-tail", "session.jsonl.zstd");

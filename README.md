@@ -106,7 +106,7 @@ Agent tools after install: `session_scan` / `session_inspect` / `session_repair`
 | `scan [root]` | list sessions + header health + orphan `.tmp` |
 | `inspect <id>` | decode every zstd frame, expand packed rows, report seq gaps / missing ids / dangling tool/call / steps after a closed turn |
 | `repair <id>` | default `--dry-run`; `--apply` rewrites after `.bak.<utc>` |
-| `compact <id> --keep-last-turns N` | keep the last N complete turns, renumber seq from 0 |
+| `compact <id> --keep-last-turns N` | drop earlier turns, renumber seqs from 0 and turns/steps from 1, shift the seq references that stay inside the slice; refuses (writes nothing) when a reference would point at a dropped event, or when the session has an inherited seed prefix |
 | `export <id>` | JSONL dump; redacts secrets unless `--no-redact` |
 | `index [root]` | session / parent / goal / health table |
 

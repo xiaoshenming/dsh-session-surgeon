@@ -77,3 +77,16 @@ export function formatRepairText(result) {
   if (result.afterHealth) lines.push(`after: ${result.afterHealth}`);
   return lines.join("\n");
 }
+
+/** A compact plan carries no `actions`; it drops turns and renumbers the rest. */
+export function formatCompactText(result) {
+  const plan = result.plan;
+  const lines = [
+    result.dryRun ? "dry-run (no write)" : result.wrote ? "applied" : "no write",
+    plan.refuse
+      ? `refuse: ${plan.refuse}`
+      : `kept ${plan.keptTurns ?? 0} turn(s), dropped ${plan.droppedTurns ?? 0}, events: ${plan.events.length}`,
+  ];
+  if (result.afterHealth) lines.push(`after: ${result.afterHealth}`);
+  return lines.join("\n");
+}
