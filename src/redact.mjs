@@ -68,14 +68,35 @@ export function redactValue(value) {
   return mapStrings(value, redactString);
 }
 
-/** Count lone-surrogate strings in a tree (does not mutate). */
-export function countLoneSurrogates(value) {
-  let n = 0;
-  mapStrings(value, (s) => {
-    if (containsLoneSurrogate(s)) n += 1;
-    return s;
-  });
-  return n;
+/** True when any string anywhere in `value` carries an unpaired surrogate. */
+function hasLoneSurrogateDeep(value) {
+  if (typeof value === "string") return containsLoneSurrogate(value);
+  if (Array.isArray(value)) {
+    for (const item of value) if (hasLoneSurrogateDeep(item)) return true;
+    return false;
+  }
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value)) if (hasLoneSurrogateDeep(item)) return true;
+    return false;
+  }
+  return false;
+}
+
+/**
+ * Locate lone surrogates: the seq/type of every event carrying one, and whether
+ * the header does. The header names the directory the log lives in, so a hit
+ * there is reported but never rewritten.
+ */
+export function loneSurrogateLocations(header, events) {
+  const seqs = [];
+  const types = [];
+  for (const event of events) {
+    if (!hasLoneSurrogateDeep(event)) continue;
+    seqs.push(Number.isSafeInteger(event?.seq) ? event.seq : null);
+    types.push(typeof event?.type === "string" ? event.type : "unknown");
+  }
+  const inHeader = hasLoneSurrogateDeep(header);
+  return { inHeader, seqs, types, total: seqs.length + (inHeader ? 1 : 0) };
 }
 
 /** Deep-clone and replace lone surrogates. Returns { value, replaced }. */

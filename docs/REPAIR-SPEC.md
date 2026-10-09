@@ -41,7 +41,7 @@
 | `v0-inbox-inserted-message` | `agent/inbox/spliced` 的 `inserted[]` 消息缺 `id` / `role` | v0→v1 `messageValue` 拒读整条会话（#6559） | 仅当本机 format ≥ 1 时补 `id`（与 `message-missing-id` 同一做法）与校验器实参写死的 `role: "user"`；正文/来源不动；content、source 缺失或带未知成员的不碰 |
 | `forward-event-shim` | Alpha `model/selection` 降级后 rc.2 不认识 | `SessionFormatUnsupportedError` | 仅在官方结构校验通过时加 `ignorable: true`；保留 type/data/seq/time |
 | `seq-overlap-replay` | 同一 seq 出现两次（崩溃重放） | 表现为 gap/overlap | 保留先写的，丢掉重放尾 |
-| `lone-surrogate` | 用户文本含孤立 UTF-16 代理 | 可能永久 HTTP 400（#436） | 剥掉或替换 U+FFFD |
+| `lone-surrogate` | 事件或 header 的字符串含孤立 UTF-16 代理 | 文件照常加载，但之后每轮请求都 400（#436、#8466） | 事件里替换 U+FFFD（报出 `seq N (类型)`）；header 里只报告，见 2.4 |
 | `orphan-tmp` | 旁边有 `.tmp` | 不管 | 列出；不自动当正本 |
 | `open-tail` | 缺 tool/step/turn 闭合，但 seq 连续 | 官方补 closer | 复用同一语义 |
 | `huge-history` | 事件/token 过多 | 加载 stack overflow（#317） | compact / 切片，不叫 repair |
@@ -102,11 +102,13 @@
 
 ### 2.4 lone-surrogate
 
-扫描 `user/message` / 文本类 payload 的字符串：
+扫描每个事件的字符串（以及 header）：
 
 - 孤立高代理或低代理 → 替换为 `U+FFFD`（或删除，二选一，默认替换）
 - 只动字符串内容，不动 seq / type
 - 修完必须还能 JSON.stringify 并被官方 parse
+- 判定必须报出**位置**（`seq N (类型)` + `seqs`）：文件本身照常加载，用户只看到 `DeepSeek Messages request failed (400)`，定位就是这条诊断的全部价值（#8466）
+- **header 里的代理只报告、不改写**：header 的 `cwd` 写着这份日志所在的目录，就地改写会让日志离开命名它的目录（Windows 目录名可以带不成对代理，所以可达）。这种情况要说清「只报告」，不能留下「inspect 说坏、repair 说没事」的死角
 
 ### 2.5 合成 closer
 

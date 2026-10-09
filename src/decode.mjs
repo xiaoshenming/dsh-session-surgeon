@@ -1,6 +1,6 @@
 import { decodeFrames, scanZstdFrames } from "./zstd-frames.mjs";
 import { classifyHeader } from "./header.mjs";
-import { countLoneSurrogates } from "./redact.mjs";
+import { loneSurrogateLocations } from "./redact.mjs";
 import { SessionLogScanner, isExactHeaderRecord } from "./scanner.mjs";
 import { hasCompressedSeqRanges } from "./provenance.mjs";
 import { MIGRATION_REFUSES_DUPLICATE_TOOL_CALL_IDS, SUPPORTS_NATIVE_SEQ_RANGES } from "./runtime.mjs";
@@ -20,7 +20,8 @@ export { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 export { turnStepImbalances } from "./turn-step.mjs";
 export { prunePassHits, planPruneTail } from "./prune-tail.mjs";
 
-const HEALTH_RANK = [
+/** Worst-first list of every health code `decodeSessionBuffer` can report. */
+export const HEALTH_RANK = [
   "header-frame-corrupt",
   "header-parse-error",
   "foreign-version",
@@ -214,10 +215,25 @@ export function decodeSessionBuffer(buf) {
       issues.push({ code: "torn-tail", message: "incomplete final frame at byte " + tornStart });
     }
   }
-  if (countLoneSurrogates({ header: headerClass.header, events: finished.events }) > 0) {
+  const surrogate = loneSurrogateLocations(headerClass.header, finished.events);
+  if (surrogate.total > 0) {
     health = worse(health, "lone-surrogate");
     if (!issues.some((i) => i.code === "lone-surrogate")) {
-      issues.push({ code: "lone-surrogate", message: "isolated UTF-16 surrogate in payload" });
+      const where = [];
+      if (surrogate.seqs.length > 0) {
+        where.push(surrogate.seqs.map((seq, i) => `seq ${seq} (${surrogate.types[i]})`).join(", "));
+      }
+      if (surrogate.inHeader) where.push("the header");
+      const issue = {
+        code: "lone-surrogate",
+        message:
+          `isolated UTF-16 surrogate in ${where.join(" and ")} — JSON.stringify escapes it and the provider rejects every later request body (HTTP 400, #8466); repair replaces it with U+FFFD` +
+          (surrogate.inHeader
+            ? ", but a surrogate in the header is only reported: the header names the directory this log lives in"
+            : ""),
+      };
+      if (surrogate.seqs.length > 0) issue.seqs = surrogate.seqs;
+      issues.push(issue);
     }
   }
   const compressedRanges =

@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+import { HEALTH_RANK } from "../src/decode.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const PANEL_ID = "session-surgeon";
@@ -245,6 +246,14 @@ test("a shell without a slot registry keeps the overlay fallback", async () => {
   assert.equal(browser.injected.length, 0);
   assert.ok(browser.created.some((el) => el.dataset.dshSurgeonView === ""), "the overlay host must still mount");
   assert.ok(browser.created.some((el) => el.dataset.dshSurgeonEntry === ""), "the injected sidebar entry must still mount");
+});
+
+test("every health code the decoder can report has copy in all three locales", async () => {
+  const client = await readFile(join(ROOT, "plugin", "client.js"), "utf8");
+  const missing = HEALTH_RANK.filter(
+    (code) => (client.match(new RegExp(`"${code}":`, "g")) ?? []).length < 3,
+  );
+  assert.deepEqual(missing, [], "zh/en/nl must each label the code the badge shows");
 });
 
 test("the page rides the shell's design tokens", async () => {

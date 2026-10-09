@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { decodeSessionBuffer, eventsSeqOk } from "../src/decode.mjs";
+import { encodeSession } from "../src/encode.mjs";
+import { planRepair } from "../src/repair.mjs";
 
 const FIX = join(dirname(fileURLToPath(import.meta.url)), "../fixtures/synthetic");
 
@@ -32,8 +34,28 @@ test("seq-gap-committed stops before the hole", async () => {
   assert.ok(!decoded.events.some((e) => e.data?.turn === 2 && e.type === "turn/end"));
 });
 
-test("lone-surrogate is flagged", async () => {
+test("lone-surrogate names the seq and type that carry it", async () => {
   const decoded = decodeSessionBuffer(await readFile(join(FIX, "lone-surrogate.session.jsonl.zstd")));
   assert.equal(decoded.health, "lone-surrogate");
-  assert.ok(decoded.issues.some((i) => i.code === "lone-surrogate"));
+  const issue = decoded.issues.find((i) => i.code === "lone-surrogate");
+  assert.deepEqual(issue.seqs, [1]);
+  assert.match(issue.message, /seq 1 \(user\/message\)/);
+});
+
+test("a lone surrogate in the header is reported, never silently rewritten", async () => {
+  const healthy = decodeSessionBuffer(await readFile(join(FIX, "healthy-packed.session.jsonl.zstd")));
+  const buf = await encodeSession({
+    header: { ...healthy.header, cwd: healthy.header.cwd + "\uDC3E" },
+    events: healthy.events,
+  });
+  const decoded = decodeSessionBuffer(buf);
+  assert.equal(decoded.health, "lone-surrogate");
+  const issue = decoded.issues.find((i) => i.code === "lone-surrogate");
+  assert.equal(issue.seqs, undefined, "a header hit carries no event seq");
+  assert.match(issue.message, /the header/);
+  assert.match(issue.message, /only reported/);
+  // Rewriting `cwd` would move the log out of the directory that names it.
+  const plan = planRepair(decoded);
+  assert.equal(plan.mustWrite, false);
+  assert.deepEqual(plan.actions.map((a) => a.code), []);
 });
