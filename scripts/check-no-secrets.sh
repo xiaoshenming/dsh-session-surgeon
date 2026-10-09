@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
-out=/tmp/surgeon-secret-hits
-: >"$out"
+out="$(mktemp "${TMPDIR:-/tmp}/surgeon-secret-hits.XXXXXX")"
+trap 'rm -f "$out"' EXIT
 
 # Credential formats are always reported.
 git -C "$root" grep -I -E 'sk-[A-Za-z0-9]{10,}|BEGIN (OPENSSH|RSA) PRIVATE KEY' -- ':!docs' ':!test' >>"$out" || true
