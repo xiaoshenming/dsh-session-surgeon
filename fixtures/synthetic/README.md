@@ -18,6 +18,7 @@ line only; later frames are event batches. Frames are compressed with
 | `lone-surrogate.session.jsonl.zstd` | `user/message` text contains isolated high surrogate U+D800 | replace with U+FFFD; seq unchanged. |
 | `orphan-tmp/session.jsonl.zstd` | healthy tiny log | scan lists it. |
 | `orphan-tmp/session.jsonl.zstd.tmp` | leftover sibling of the healthy log | scan lists the orphan; repair must not treat `.tmp` as the canonical file. |
+| `zero-fill-tail.session.jsonl.zstd` | 512 zero bytes after the last complete frame — the crash landed between `write()` and `fsync()` (#9372) | the official-shaped scan refuses at the committed length; inspect reports `zero-fill-tail` and still reads every committed event; `repair --apply` drops the zeros and changes nothing else. |
 
 Regenerate:
 

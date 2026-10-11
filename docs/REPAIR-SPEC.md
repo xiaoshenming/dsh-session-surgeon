@@ -24,6 +24,7 @@
 | `header-frame-corrupt` | 第 1 帧 checksum / 解压失败 | 拒载 | 不修 |
 | `foreign-version` | `version !== 0` | 「请升级 harness」 | 不修，提示升级 |
 | `torn-tail` | 最后一帧不完整 | load 时自动截断+closer | 可离线做同样的事（dsh 起不来时） |
+| `zero-fill-tail` | 最后一个完整帧之后直到 EOF 全是 0 字节（`write()` 与 `fsync()` 之间崩溃：#9372） | **拒载**：`invalid frame magic at byte <已提交长度>`（官方扫描器把零区当成坏魔数，整条会话打不开） | 丢掉零区，已提交的每一帧原样保留；**只有全 0 才算这个形状**，非 0 垃圾照旧只报告 |
 | `failed-middle-frame` | 中间完整帧解压失败 | 整文件拒载 | 不自动修；报告帧号 |
 | `unparsable-line` | 某行不是 JSON / packed 行畸形 | 若之后有 turn/end → 拒载 | 丢掉该行及之后，或停在上一 turn/end |
 | `seq-gap-committed` | 展开后 seq 不连续，且之后有 turn/end | **拒载**（#1497/#1586） | 主修复路径；若能证明是崩溃恢复闭包 vs 还活着的写者，丢掉闭包、保留 live 分支 |
@@ -76,6 +77,15 @@
 - 记 `truncateTo = 该帧起点`
 
 这是官方 `commitRepair` 的前半段。我们可以在 dsh 没起来时替它做。
+
+### 2.2b zero-fill-tail（#9372）
+
+崩溃落在 `write()` 与 `fsync()` 之间时，**文件长度先落盘、帧数据没落盘**，那段读回来全是 `0x00`（NTFS `ValidDataLength`、XFS/ext4 延迟分配）。官方扫描器在第一个零字节处判坏魔数并整条拒载（`invalid frame magic at byte <已提交长度>`），所以一条**已提交前缀完全完好**的会话打不开。
+
+- 判据要窄：`scanZstdFrames` 只在「从某个 offset 到 EOF **全是 0**」时返回 `zeroTailAt`；非 0 垃圾（含「零区后面还有真帧」）照旧抛 `invalid frame magic`，不做猜测
+- 零区不贡献任何事件，所以 repair 丢掉的只有那串 0；已提交的帧、事件、seq 一个不动（测试断言修复前后 `events` 深度相等）
+- 与 `torn-tail` 的区别：torn 是**帧结构读到一半就 EOF**（有合法魔数、声明长度超出文件）；零区是**连魔数都没有**
+- raw（`compression: 'none'`）日志不走这条路径，同形状只报告
 
 ### 2.3 seq-gap / overlap（核心）
 
@@ -152,6 +162,7 @@
 | 文件 | 期望 |
 |---|---|
 | `torn-tail.session.jsonl.zstd` | dry-run 报 torn-tail；apply 后 load 成功，有合成 turn/end |
+| `zero-fill-tail.session.jsonl.zstd` | 官方形状的扫描器在已提交长度处拒读（复现缺陷）；inspect 报 `zero-fill-tail` 且读到全部已提交事件；apply 后丢零区、事件逐条不变 |
 | `seq-gap-committed.session.jsonl.zstd` | 停在 gap 前最后一个 turn/end；之后的 turn 消失 |
 | `lone-surrogate.session.jsonl.zstd` | 不再含孤立代理；header/seq 不变 |
 | `orphan-tmp/` | scan 列出来，repair 不把它当正本 |

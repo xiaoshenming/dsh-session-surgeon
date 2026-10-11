@@ -49,6 +49,7 @@ export const HEALTH_RANK = [
   "seq-gap-tail",
   "message-missing-id",
   "lone-surrogate",
+  "zero-fill-tail",
   "torn-tail",
   "packed-overlap-suffix",
   "unknown-type",
@@ -66,7 +67,7 @@ function worse(current, next) {
   return rank(next) < rank(current) ? next : current;
 }
 
-function emptyResult({ headerClass, frames, tornStart, issues, failedFrames, health, unknownTypes }) {
+function emptyResult({ headerClass, frames, tornStart, zeroTailAt, issues, failedFrames, health, unknownTypes }) {
   return {
     header: headerClass.header ?? null,
     headerClass,
@@ -75,6 +76,7 @@ function emptyResult({ headerClass, frames, tornStart, issues, failedFrames, hea
     // has to be lossless JSON and the harness rejects a value holding
     // `undefined` outright ("value is not lossless JSON" for the whole report).
     ...(tornStart === undefined ? {} : { tornStart }),
+    ...(zeroTailAt === undefined ? {} : { zeroTailAt }),
     events: [],
     overflow: [],
     issues,
@@ -213,6 +215,17 @@ export function decodeSessionBuffer(buf) {
     health = worse(health, "torn-tail");
     if (!issues.some((i) => i.code === "torn-tail")) {
       issues.push({ code: "torn-tail", message: "incomplete final frame at byte " + tornStart });
+    }
+  }
+  const zeroTailAt = scanned.zeroTailAt;
+  if (zeroTailAt !== undefined) {
+    health = worse(health, "zero-fill-tail");
+    if (!issues.some((i) => i.code === "zero-fill-tail")) {
+      issues.push({
+        code: "zero-fill-tail",
+        message:
+          `the file grew to ${buf.length} bytes but the frame data after byte ${zeroTailAt} never reached disk — it reads back as ${buf.length - zeroTailAt} zero byte(s) (#9372); every committed frame before it is intact, and repair drops the zeros`,
+      });
     }
   }
   const surrogate = loneSurrogateLocations(headerClass.header, finished.events);
@@ -473,6 +486,7 @@ export function decodeSessionBuffer(buf) {
     headerClass,
     frames,
     tornStart,
+    ...(zeroTailAt === undefined ? {} : { zeroTailAt, zeroTailBytes: buf.length - zeroTailAt }),
     events: finished.events,
     overflow: finished.overflow ?? [],
     issues,

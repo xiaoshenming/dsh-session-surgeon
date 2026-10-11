@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { constants, zstdCompress } from "node:zlib";
-import { assert, verifyGap, verifyHealthy, verifyLone, verifyOrphan, verifyTorn } from "./verify.mjs";
+import { assert, verifyGap, verifyHealthy, verifyLone, verifyOrphan, verifyTorn, verifyZeroTail } from "./verify.mjs";
 
 const compressAsync = promisify(zstdCompress);
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -112,6 +112,16 @@ async function main() {
     await compressFrame(jsonl(healthyEvents)),
   ]);
 
+  // #9372: the crash landed between write() and fsync(), so the file grew by
+  // 512 bytes that read back as zeros. Every committed frame is intact.
+  const zeroHeader = await compressFrame(jsonl([header("session-synthetic-zero-tail")]));
+  const zeroBody = await compressFrame(jsonl(healthyEvents));
+  const zeroTail = await writeConcat("zero-fill-tail.session.jsonl.zstd", [
+    zeroHeader,
+    zeroBody,
+    Buffer.alloc(512),
+  ]);
+
   const tornPrefix = [
     ev("turn/start", 0, { turn: 1 }),
     userMessage(1, "Continue.", "msg-torn-user"),
@@ -180,8 +190,9 @@ async function main() {
   verifyGap(gap, gapEvents);
   verifyLone(lone);
   verifyOrphan(orphan);
+  verifyZeroTail(zeroTail, zeroHeader.length + zeroBody.length);
 
-  for (const item of [healthy, torn, gap, lone, orphan]) {
+  for (const item of [healthy, torn, gap, lone, orphan, zeroTail]) {
     console.log(`wrote ${item.path.slice(ROOT.length + 1)} (${item.bytes.length} bytes)`);
   }
   console.log("wrote orphan-tmp/session.jsonl.zstd.tmp");

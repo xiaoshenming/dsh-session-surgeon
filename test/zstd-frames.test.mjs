@@ -30,6 +30,31 @@ test("truncated last 8 bytes reports tornStart", async () => {
   assert.equal(scanned.frames.length, 0);
 });
 
+test("an all-zero run after the last frame reports zeroTailAt (#9372)", async () => {
+  const first = await compressFrame("header\n");
+  const second = await compressFrame("body\n");
+  const buf = Buffer.concat([first, second, Buffer.alloc(4096)]);
+  const scanned = scanZstdFrames(buf);
+  assert.equal(scanned.frames.length, 2);
+  assert.equal(scanned.tornStart, undefined);
+  assert.equal(scanned.zeroTailAt, first.length + second.length);
+  // The committed frames stay decodable; only the zero run is set aside.
+  assert.deepEqual(decodeFrames(buf).map((f) => f.text), ["header\n", "body\n"]);
+});
+
+test("non-zero garbage after the last frame still rejects", async () => {
+  const frame = await compressFrame("abc\n");
+  assert.throws(
+    () => scanZstdFrames(Buffer.concat([frame, Buffer.from([0, 0, 0, 1])])),
+    /invalid frame magic/,
+  );
+  // Zeros followed by real bytes are not a crash residue either.
+  assert.throws(
+    () => scanZstdFrames(Buffer.concat([frame, Buffer.alloc(8), frame])),
+    /invalid frame magic/,
+  );
+});
+
 test("scanZstdFrames matches official ranges when the module is present", async (t) => {
   const officialPath =
     "/home/ming/.nvm/versions/node/v22.19.0/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-session-persistence-jsonl/lib/index.js";

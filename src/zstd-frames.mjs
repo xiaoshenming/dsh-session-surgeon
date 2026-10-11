@@ -10,13 +10,28 @@ const CHECKSUM_OPTIONS = { params: { [constants.ZSTD_c_checksumFlag]: 1 } };
 const INCOMPLETE_FRAME_OPTIONS = { finishFlush: constants.ZSTD_e_flush };
 
 /**
+ * True when every byte from `offset` to EOF is zero. A crash between `write()`
+ * and `fsync()` leaves the file's new length on disk without the frame data:
+ * NTFS `ValidDataLength` and XFS/ext4 delayed allocation both read that region
+ * back as zeros, so a zero run is the signature of that crash, not corruption
+ * of the committed prefix (#9372).
+ */
+function isZeroTail(buffer, offset) {
+  for (let i = offset; i < buffer.length; i++) {
+    if (buffer[i] !== 0) return false;
+  }
+  return true;
+}
+
+/**
  * Locate complete Zstandard frames without decompressing blocks.
  * Invalid complete structure rejects; EOF inside the final frame
- * returns `tornStart` instead of throwing.
+ * returns `tornStart` instead of throwing, and an all-zero run after the last
+ * complete frame returns `zeroTailAt` so the committed prefix stays readable.
  *
  * @param {Buffer} buffer
  * @param {number} [maxFrames]
- * @returns {{ frames: { start: number, end: number }[], tornStart?: number }}
+ * @returns {{ frames: { start: number, end: number }[], tornStart?: number, zeroTailAt?: number }}
  */
 export function scanZstdFrames(buffer, maxFrames = Number.POSITIVE_INFINITY) {
   const frames = [];
@@ -27,6 +42,7 @@ export function scanZstdFrames(buffer, maxFrames = Number.POSITIVE_INFINITY) {
       return { frames, tornStart: start };
     }
     if (buffer.readUInt32LE(offset) !== ZSTD_MAGIC) {
+      if (isZeroTail(buffer, offset)) return { frames, zeroTailAt: offset };
       throw new Error(`corrupt Zstandard session log: invalid frame magic at byte ${offset}`);
     }
     offset += 4;

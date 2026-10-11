@@ -22,6 +22,7 @@ async function fixtureRoot() {
   for (const [id, src] of [
     ["session-synthetic-healthy-packed", "healthy-packed.session.jsonl.zstd"],
     ["session-synthetic-torn-tail", "torn-tail.session.jsonl.zstd"],
+    ["session-synthetic-zero-tail", "zero-fill-tail.session.jsonl.zstd"],
   ]) {
     const dir = join(root, "--tmp--", id);
     await mkdir(dir, { recursive: true });
@@ -93,4 +94,23 @@ test("repair without --apply does not change bytes", async () => {
   const r = run(["repair", "session-synthetic-torn-tail", root]);
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(await readFile(file), before);
+});
+
+test("repair drops a zero-filled tail and keeps the committed prefix", async () => {
+  const root = await fixtureRoot();
+  const id = "session-synthetic-zero-tail";
+  const file = join(root, "--tmp--", id, "session.jsonl.zstd");
+
+  const preview = run(["inspect", id, root, "--format", "text"]);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.match(preview.stdout, /zero-fill-tail/);
+
+  const applied = run(["repair", id, root, "--apply", "--format", "text"]);
+  assert.equal(applied.status, 0, applied.stderr);
+  assert.match(applied.stdout, /zero-fill-tail: dropped 512 zero byte/);
+  assert.match(applied.stdout, /after: ok/);
+
+  const after = run(["inspect", id, root, "--format", "text"]);
+  assert.match(after.stdout, /health\s+ok/);
+  assert.ok(!(await readFile(file)).equals(Buffer.alloc(0)));
 });

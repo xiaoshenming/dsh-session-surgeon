@@ -107,6 +107,25 @@ export async function verifyTorn(file, lastFull) {
   assert(recovered.includes("assistant/chunk"), "torn: flush recovers a complete line");
 }
 
+/**
+ * #9372: the committed frames are intact and a zero run follows them. The
+ * scanner here mirrors the *official* one on purpose, so the fixture has to
+ * make it refuse — that refusal is the defect being reproduced.
+ */
+export function verifyZeroTail(file, committedBytes) {
+  assert(committedBytes > 0 && file.bytes.length === committedBytes + 512, "zero-tail: 512 bytes past the committed prefix");
+  const tail = file.bytes.subarray(committedBytes);
+  assert(tail.every((byte) => byte === 0), "zero-tail: the tail is all zeros");
+  let refused = "";
+  try {
+    scanZstdFrames(file.bytes);
+  } catch (error) {
+    refused = String(error.message);
+  }
+  assert(refused === `invalid magic at ${committedBytes}`, "zero-tail: the official-shaped scan refuses at the committed length");
+  assertHeader(decodeLines(file.frames[0])[0], "zero-tail");
+}
+
 export function verifyGap(file, events) {
   assertHeader(decodeLines(file.frames[0])[0], "gap");
   const firstGap = events.findIndex((event, i) => event.seq !== i);

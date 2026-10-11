@@ -87,6 +87,28 @@ test("lone-surrogate --apply strips isolated surrogates and keeps seq", async ()
   assert.equal(containsLoneSurrogate(dump), false);
 });
 
+test("zero-filled tail is diagnosed and dropped without losing a committed event (#9372)", async () => {
+  const dest = await copyFixture("zero-fill-tail.session.jsonl.zstd");
+  const clean = decodeSessionBuffer(await readFile(join(FIX, "healthy-packed.session.jsonl.zstd")));
+
+  const damaged = decodeSessionBuffer(await readFile(dest));
+  assert.equal(damaged.health, "zero-fill-tail");
+  const issue = damaged.issues.find((i) => i.code === "zero-fill-tail");
+  assert.equal(damaged.zeroTailBytes, 512);
+  assert.match(issue.message, /512 zero byte/);
+  assert.deepEqual(damaged.events, clean.events, "the committed prefix stays readable");
+
+  const result = await repairFile(dest, { dryRun: false });
+  assert.equal(result.wrote, true);
+  assert.ok(result.plan.actions.some((a) => a.code === "zero-fill-tail"));
+  const after = decodeSessionBuffer(await readFile(dest));
+  assert.equal(after.health, "ok");
+  assert.deepEqual(after.events, clean.events, "not one committed event changes");
+  // The zeros are gone, and the frames now cover the whole file.
+  const bytes = await readFile(dest);
+  assert.equal(bytes.length, after.frames.at(-1).end);
+});
+
 test("mid-turn committed gap truncates to the previous turn/end, not an open turn", async () => {
   const { encodeSession } = await import("../src/encode.mjs");
   const { atomicWrite } = await import("../src/encode.mjs");

@@ -17,6 +17,7 @@ import { INSTALLED_CATALOG } from "./runtime.mjs";
 
 const DEFAULT_STEPS = {
   tornTail: true,
+  zeroFillTail: true,
   overlap: true,
   committedGap: true,
   dropDirtyTail: true,
@@ -258,6 +259,13 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
 
   if (steps.tornTail && decoded.tornStart !== undefined) {
     actions.push({ code: "torn-tail", detail: "dropped incomplete frame at byte " + decoded.tornStart });
+  }
+
+  if (steps.zeroFillTail && decoded.zeroTailAt !== undefined) {
+    actions.push({
+      code: "zero-fill-tail",
+      detail: "dropped " + (decoded.zeroTailBytes ?? 0) + " zero byte(s) after byte " + decoded.zeroTailAt,
+    });
   }
 
   if (steps.overlap) {
