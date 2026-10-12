@@ -169,6 +169,26 @@ refuse 的情形：链身份含对象、`retryId` 不是非空字符串、`retry
 
 ---
 
+## 3b. 已知漏检（实测，尚未实现探测器）
+
+用「假阴性扫描」量出来的（把一份真实 184 事件 v4 会话逐条做语义变异，再逐条比对发布包的折叠判定）：**下面这些变异官方折叠会拒读，我们仍报 `ok`**。都在同一族 —— **配对与 surface 一致性**，我们目前一个都没查。
+
+| 变异 | 官方折叠 |
+|---|---|
+| `turn/start.data.turn + 1` | `turn/start does not open the expected turn` |
+| `step/start.data.step + 1` / `data.turn + 1` | `step/start does not match the open turn and next step` |
+| `assistant/message.data.turn + 1` | `assistant/message does not match an open turn and step` |
+| `turn/end.data.turn + 1` | `turn/end does not match the open turn with no open step` |
+| `tool/result.message.toolCallId` 改掉 | `tool/result other-id has no advertised tool lifecycle` |
+| `tool/result.message.toolCallId` 删掉 | `tool call id requires a nonempty string` |
+| `tool/result.surfaceOp` 删掉 | `tool/result surfaceOp requires an object` |
+
+每一条在工件里都**没有唯一修复答案**（中途的 turn 重编号是 `compact` 在切片边界做的事 —— 那里"切点"定义了答案；这里意图不可知），所以正确的形态是**只报告**的健康码，和 `step-after-turn-end`、`dangling-tool-call` 同级。其中 `tool/result.toolCallId === source.callId` 这条，技能文档里本来就记着"还没做探测"。
+
+**加探测器时先跑扫描**：新探测器一上线就用同一份变异矩阵回归，别只写单测 —— 上一轮 `producer-source-invalid` 就是因为两个测试都直接调探测器函数、没走 `decode.mjs` 的接线，才带着一个永远为假的闸门发布出去（`scanner.finish()` 不返回 `header`）。
+
+---
+
 ## 4. 验收
 
 合成 fixture（`fixtures/synthetic/`，week 1 补齐）：

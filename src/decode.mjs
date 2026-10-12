@@ -448,7 +448,9 @@ export function decodeSessionBuffer(buf) {
       });
     }
   }
-  const sourceHits = finished.header && finished.header.version >= 4 ? producerSourceHits(finished.events) : [];
+  // `scanner.finish()` carries no header, so the generation comes from the
+  // classified header — the same value the neighbouring v4 detectors use.
+  const sourceHits = typeof fileVersion === "number" && fileVersion >= 4 ? producerSourceHits(finished.events) : [];
   if (sourceHits.length > 0) {
     health = worse(health, "producer-source-invalid");
     if (!issues.some((i) => i.code === "producer-source-invalid")) {

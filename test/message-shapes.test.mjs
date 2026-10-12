@@ -378,6 +378,20 @@ test("the reported rows are exactly the ones the released gates refuse", async (
     const events = sourceLog(slot, source);
     const hits = producerSourceHits(events);
     assert.equal(hits.length > 0, refused(events), slot + " / " + JSON.stringify(source));
+    // The detector has to be reachable through the decode path, not just
+    // callable: an earlier gate compared the generation against a member
+    // `scanner.finish()` does not return, so this never fired in production.
+    const decoded = decodeSessionBuffer(await encodeSession({ header, events }));
+    assert.equal(
+      decoded.producerSourceHits.length > 0,
+      hits.length > 0,
+      slot + " / " + JSON.stringify(source) + ": decode must carry the detector's hits",
+    );
+    assert.equal(
+      decoded.health === "producer-source-invalid",
+      hits.length > 0,
+      slot + " / " + JSON.stringify(source) + ": decode must report the health code",
+    );
   }
 });
 
