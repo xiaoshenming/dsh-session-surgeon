@@ -34,6 +34,7 @@
 | `prune-tail-outside-turn` | `turn/end` 之后、没有开着回合时出现 replacement `tool/result`（空闲 tool-result 修剪器的输出，#8812） | **拒载**：两个已发布读端都把非 append 的 `tool/result` 走 `requireTurn()`（`assertReleasedV4Relationships`；0.2.0-rc.2 的 worker 里是 `else if (openTurn === null) throw "tool/result replacement is outside an open turn"`） | 仅当最后 `turn/end` 之后**整段**都是修剪器自己的行（`compaction/prune` + replacement `tool/result`，且 `sourceEventSeqs` 全部指向切点之前）时，裁回那个 `turn/end`；它们只遮蔽本来还在盘上的 surface 节点，不丢消息/回合/工具结果。尾巴里有别的东西、或没有可切的 `turn/end` → refuse 并说明原因 |
 | `producer-source-invalid` | 消息 `source` 缺失/不是对象，或 `kind` 缺失、空、非字符串、与该槽位要求的 kind 不符（`system/message`→`system-prompt`、`assistant/message`→`model`、`tool/result`→`tool`；`user`/`developer` 任意非空且 ≠ `plugin`） | **拒载**：v4 准入 `assertV4MessageSources`（读盘每条都跑）+ seed 构造（槽位 kind 那条报 `message must have model source` 等） | **只报告**：正确值在工件里没有唯一答案；`{kind:"plugin"}` 字面量另有 `v4-literal-plugin-source` 可修，不并入这条 |
 | `legacy-replay-state` | `assistant/chunk` finish / message source 的 `replayState` 根上有 `kind`（扁平 pi-ai） | **0.1.3+** v0→v1 `unexpected member "kind"`（#5694/#5909）；v0 仍能打开 | 仅当本机 format ≥ 1 时把除 `blocks` 外的键挪进 `response`；不编字段 |
+| `llm-retry-chain` | 同一条 policy 链（`turn`/`step`/`provider`/`policyKey`）里的 `llm/retry` 没有逐次 +1，或一条链用了多个 `retryId` | **拒载**：关系折叠 `llm/retry skips its policy attempt sequence` / `llm/retry must keep one retryId per policy chain` → `stored session "…" is corrupt`，且写入时静默、下次打开才暴露（#9163） | 次数 = 该链内的顺序（1..N），id = 该链第一个 `retryId`；`llm/retry-started` 按原 `(retryId, retry)` 配对表跟着改。链身份不可比、配对不上、或新链复用了已有 id → refuse，不猜 |
 | `v0-preset-extra-member` | `permission/preset` data 带冻结清单外成员（如 `origin`） | **0.1.5** v0→v1 迁移拒读（#6189）；v0 仍能打开 | 仅当本机 format ≥ 1 时只保留 `preset`，权限语义不变 |
 | `v0-descriptor-version` | `subagent/descriptor` data.version ≠ 3 | **0.1.5** 迁移拒读 v0 工件（#6151） | 仅当本机 format ≥ 1 时把 version 改成 3（成员形状相同） |
 | `v0-plugin-source-form` | 插件消息来源 `summary`/`sections` 与 `form` 不匹配 | **0.1.5** 迁移拒读（#6194） | 仅当本机 format ≥ 1 时**对齐 `form`**（summary→notice，sections→snapshot），保住成员；仅 summary+sections 并存冲突才删其一；正文不动 |
@@ -119,6 +120,19 @@
 - 修完必须还能 JSON.stringify 并被官方 parse
 - 判定必须报出**位置**（`seq N (类型)` + `seqs`）：文件本身照常加载，用户只看到 `DeepSeek Messages request failed (400)`，定位就是这条诊断的全部价值（#8466）
 - **header 里的代理只报告、不改写**：header 的 `cwd` 写着这份日志所在的目录，就地改写会让日志离开命名它的目录（Windows 目录名可以带不成对代理，所以可达）。这种情况要说清「只报告」，不能留下「inspect 说坏、repair 说没事」的死角
+
+### 2.4b llm-retry-chain（#9163）
+
+关系折叠 `Relationships.retry` 的规则（0.1.7-rc.2 / 桌面 0.2.0-rc.2 同形）：
+
+- 链身份 = `(turn, step, provider, policyKey)` 四元组（`===` 逐个比；`policyKey` 不是原始值时这条规则永远不成立，我们 refuse）
+- `llm/retry`：`retry` 必须是**同一链上一条**的 `retry + 1`，链首为 1
+- `llm/retry`：链首那条的 `retryId` 不能已经被**任何**更早的 retry 用过；链内其余各条必须与链首同一个 `retryId`
+- `llm/retry-started`：必须配到一条**更早**的 `llm/retry`（按 `(retryId, retry)` 查找），且 `turn`/`step` 一致；同一个 `(retryId, retry)` 不能配两次
+
+两个值都从日志里还原，不是猜：**次数 = 该链内的顺序**，**id = 该链第一个 `retryId`**。`llm/retry-started` 用「原 `(retryId, retry)` → 新 `(retryId, retry)`」的配对表跟着改（原配对表在链内必须唯一，否则 refuse）。
+
+refuse 的情形：链身份含对象、`retryId` 不是非空字符串、`retry` 不是正整数、新链复用了更早出现过的 id、链内 `(retryId, retry)` 重复、started 配不上/坐标不一致/重复配对。**已经合规的链一个字节都不改**（`fixed: 0`），所以健康会话仍然 `mustWrite: false`。
 
 ### 2.5 合成 closer
 

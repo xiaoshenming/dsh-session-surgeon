@@ -12,6 +12,7 @@ import { disambiguateDuplicateToolCallIds } from "./duplicates.mjs";
 import { planPruneTail, prunePassHits } from "./prune-tail.mjs";
 import { turnStepImbalances } from "./turn-step.mjs";
 import { wrapFlatReplayStates } from "./replay-state.mjs";
+import { repairRetryChains, retryChainHits } from "./retry-chains.mjs";
 import { settleAssistantFields } from "./settle.mjs";
 import { INSTALLED_CATALOG } from "./runtime.mjs";
 
@@ -30,6 +31,7 @@ const DEFAULT_STEPS = {
   literalPluginSource: true,
   pruneTail: true,
   legacyReplayState: true,
+  retryChains: true,
   loneSurrogate: true,
   messageId: true,
   settlement: true,
@@ -171,6 +173,29 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
           "wrapped " +
           wrapped.wrapped +
           " flat pi-ai replayState field(s) into {response, blocks} (#5694/#5909)",
+      });
+    }
+  }
+
+  if (steps.retryChains && (decoded.health === "llm-retry-chain" || retryChainHits(events).seqs.length > 0)) {
+    const chains = repairRetryChains(events);
+    if (chains.refusals.length > 0) {
+      return {
+        actions,
+        events: decoded.events.slice(),
+        header,
+        mustWrite: false,
+        refuse:
+          "cannot repair the llm/retry chains — " +
+          chains.refusals.slice(0, 3).join("; ") +
+          " (#9163); the attempt number and chain id are not recoverable from this log",
+      };
+    }
+    if (chains.fixed > 0) {
+      events = chains.value;
+      actions.push({
+        code: "llm-retry-chain",
+        detail: "renumbered " + chains.fixed + " llm/retry row(s) inside their policy chains (#9163)",
       });
     }
   }

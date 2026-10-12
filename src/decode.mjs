@@ -15,6 +15,7 @@ import { catalogFactHits } from "./catalog-fact.mjs";
 import { literalPluginSourceHits, producerSourceHits } from "./message-shapes.mjs";
 import { turnStepImbalances, turnStepIssuesFrom } from "./turn-step.mjs";
 import { prunePassHits } from "./prune-tail.mjs";
+import { retryChainHits } from "./retry-chains.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
 export { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 export { turnStepImbalances } from "./turn-step.mjs";
@@ -48,6 +49,7 @@ export const HEALTH_RANK = [
   "step-after-turn-end",
   "seq-gap-tail",
   "message-missing-id",
+  "llm-retry-chain",
   "lone-surrogate",
   "zero-fill-tail",
   "torn-tail",
@@ -312,6 +314,23 @@ export function decodeSessionBuffer(buf) {
     if (MIGRATION_REFUSES_DUPLICATE_TOOL_CALL_IDS) health = worse(health, "legacy-replay-state");
     if (!issues.some((i) => i.code === "legacy-replay-state")) {
       issues.push({ code: "legacy-replay-state", message, seqs: replayHits });
+    }
+  }
+  const retryHits = retryChainHits(finished.events);
+  if (retryHits.seqs.length > 0 || retryHits.refusals.length > 0) {
+    const located = retryHits.seqs.length > 0 ? " at seq " + retryHits.seqs.join(", ") : "";
+    const message =
+      "llm/retry attempts do not sequence inside their policy chain" +
+      located +
+      (retryHits.refusals.length > 0
+        ? " — " + retryHits.refusals.slice(0, 3).join("; ")
+        : " — the released fold refuses the whole log with `llm/retry skips its policy attempt sequence` (#9163); repair renumbers each chain from 1 and unifies its retryId") +
+      (retryHits.seqs.length > 0 && retryHits.refusals.length > 0 ? " — repair refuses: " + retryHits.refusals.slice(0, 3).join("; ") : "");
+    health = worse(health, "llm-retry-chain");
+    if (!issues.some((i) => i.code === "llm-retry-chain")) {
+      const issue = { code: "llm-retry-chain", message };
+      if (retryHits.seqs.length > 0) issue.seqs = retryHits.seqs;
+      issues.push(issue);
     }
   }
   const migrationHits = migrationRefusalIssues(finished.events);
