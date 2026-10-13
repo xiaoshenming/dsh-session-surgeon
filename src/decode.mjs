@@ -14,6 +14,7 @@ import { settlementShapeHits } from "./settlement.mjs";
 import { catalogFactHits } from "./catalog-fact.mjs";
 import { literalPluginSourceHits, producerSourceHits } from "./message-shapes.mjs";
 import { turnStepImbalances, turnStepIssuesFrom } from "./turn-step.mjs";
+import { pairingHits, pairingIssuesFrom } from "./pairing.mjs";
 import { prunePassHits } from "./prune-tail.mjs";
 import { retryChainHits } from "./retry-chains.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
@@ -45,6 +46,8 @@ export const HEALTH_RANK = [
   "v4-literal-plugin-source",
   "producer-source-invalid",
   "prune-tail-outside-turn",
+  "turn-step-mismatch",
+  "tool-result-invalid",
   "turn-end-while-step-open",
   "step-after-turn-end",
   "seq-gap-tail",
@@ -92,6 +95,7 @@ function emptyResult({ headerClass, frames, tornStart, zeroTailAt, issues, faile
     // Callers read these as arrays (`inspectEntry` iterates turnStepImbalances).
     // An early return that omitted them made inspect throw "not iterable".
     turnStepImbalances: [],
+    pairingHits: [],
     pruneHits: [],
     missingMembers: [],
     settlementHits: [],
@@ -475,6 +479,14 @@ export function decodeSessionBuffer(buf) {
     if (MIGRATES_V0_ON_LOAD) health = worse(health, issue.code);
     if (!issues.some((i) => i.code === issue.code)) issues.push(issue);
   }
+  // v4 only, like the literal-plugin-source gate above: the older stages
+  // normalise the older shape *before* they validate it, so running these
+  // rules on an older artifact reports violations the loader never sees.
+  const pairingFound = fileVersion >= 4 ? pairingHits(finished.events) : [];
+  for (const issue of pairingIssuesFrom(pairingFound)) {
+    health = worse(health, issue.code);
+    if (!issues.some((i) => i.code === issue.code)) issues.push(issue);
+  }
   const dangling = danglingToolCalls(finished.events);
   if (dangling.length > 0) {
     health = worse(health, "dangling-tool-call");
@@ -519,6 +531,7 @@ export function decodeSessionBuffer(buf) {
     lastSeq: finished.events.length === 0 ? -1 : finished.events[finished.events.length - 1].seq,
     overflowEvents: (finished.overflow ?? []).length,
     turnStepImbalances: turnStepHits,
+    pairingHits: pairingFound,
     producerSourceHits: sourceHits,
     pruneHits,
     missingMembers,

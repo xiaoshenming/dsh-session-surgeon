@@ -169,23 +169,31 @@ refuse 的情形：链身份含对象、`retryId` 不是非空字符串、`retry
 
 ---
 
-## 3b. 已知漏检（实测，尚未实现探测器）
+## 3b. 配对与工具结果身份（已实现，只报告）
 
-用「假阴性扫描」量出来的（把一份真实 184 事件 v4 会话逐条做语义变异，再逐条比对发布包的折叠判定）：**下面这些变异官方折叠会拒读，我们仍报 `ok`**。都在同一族 —— **配对与 surface 一致性**，我们目前一个都没查。
+用「假阴性扫描」量出来的（把一份真实 4376 事件 v4 会话逐条做语义变异，再逐条比对发布包的折叠判定）：**下面这些变异官方折叠会拒读，而我们当时仍报 `ok`** —— 假阴性比崩溃更隐蔽，用户会以为文件没问题。现在 `src/pairing.mjs` 覆盖这一族，两个健康码：
 
-| 变异 | 官方折叠 |
-|---|---|
-| `turn/start.data.turn + 1` | `turn/start does not open the expected turn` |
-| `step/start.data.step + 1` / `data.turn + 1` | `step/start does not match the open turn and next step` |
-| `assistant/message.data.turn + 1` | `assistant/message does not match an open turn and step` |
-| `turn/end.data.turn + 1` | `turn/end does not match the open turn with no open step` |
-| `tool/result.message.toolCallId` 改掉 | `tool/result other-id has no advertised tool lifecycle` |
-| `tool/result.message.toolCallId` 删掉 | `tool call id requires a nonempty string` |
-| `tool/result.surfaceOp` 删掉 | `tool/result surfaceOp requires an object` |
+- `turn-step-mismatch` —— turn/step 编号不再续上 walker 的状态机
+- `tool-result-invalid` —— `tool/result` 的身份（`toolCallId` / `surfaceOp`）不成立
 
-每一条在工件里都**没有唯一修复答案**（中途的 turn 重编号是 `compact` 在切片边界做的事 —— 那里"切点"定义了答案；这里意图不可知），所以正确的形态是**只报告**的健康码，和 `step-after-turn-end`、`dangling-tool-call` 同级。其中 `tool/result.toolCallId === source.callId` 这条，技能文档里本来就记着"还没做探测"。
+| 变异 | 官方折叠 | 健康码 |
+|---|---|---|
+| `turn/start.data.turn + 1` | `turn/start does not open the expected turn` | `turn-step-mismatch` |
+| `step/start.data.step + 1` / `data.turn + 1` | `step/start does not match the open turn and next step` | `turn-step-mismatch` |
+| `assistant/message.data.turn + 1` | `assistant/message does not match an open turn and step` | `turn-step-mismatch` |
+| `turn/end.data.turn + 1` | `turn/end does not match the open turn with no open step` | `turn-step-mismatch` |
+| `tool/result.message.toolCallId` 改掉 | `tool/result other-id has no advertised tool lifecycle` | `tool-result-invalid` |
+| `tool/result.message.toolCallId` 删掉 | `tool call id requires a nonempty string` | `tool-result-invalid` |
+| `tool/result.surfaceOp` 删掉 | `tool/result surfaceOp requires an object` | `tool-result-invalid` |
 
-**加探测器时先跑扫描**：新探测器一上线就用同一份变异矩阵回归，别只写单测 —— 上一轮 `producer-source-invalid` 就是因为两个测试都直接调探测器函数、没走 `decode.mjs` 的接线，才带着一个永远为假的闸门发布出去（`scanner.finish()` 不返回 `header`）。
+判据是**照抄 walker 的状态机**（`nextTurn`/`nextStep` 都从 1 起；`turn/start` 必须开出预期回合；`step/start` 必须是开着回合的下一步；每个 step 事件必须带开着的那一对；`turn/end` 必须对上开着、且没有开着 step 的回合；`tool/result` 必须点名日志通告过的调用，且 `message.toolCallId === message.source.callId`）。v0→v1 阶段与 v4 读盘折叠用的是同一套规则，所以两条 walker 的判据一致。两条边界：
+
+- **只对 v4 工件判定**。旧代际会先被各自的迁移阶段**归一化**再校验：实测一份真实 v3 会话里 `tool/result` 的调用 id 在 `content[0].toolCallId`、`message.role` 是 `user`，v3→v4 阶段会把它抬进 `message.toolCallId`；按 v4 规则直接判原始 v3 行会报出加载器根本看不到的违例 —— 本模块第一版就这么误报过一条真实会话，是真实库回归扫出来的，不是单测。
+- **不重复报 #7824 的形状**：继续一个已关闭回合的行留给 `step-after-turn-end`，`turn/end` 跨开着 step 留给 `turn-end-while-step-open`；两个新码的优先级排在它们前面，因为编号错位才是根因，级联出来的形状不该抢徽标。
+
+每一条在工件里都**没有唯一修复答案**（中途的 turn 重编号是 `compact` 在切片边界做的事 —— 那里"切点"定义了答案；这里意图不可知；`tool/result` 答的是哪个调用，一旦错了也恢复不出来），所以只报告，repair 不动文件。
+
+**加探测器时先跑扫描**：新探测器一上线就用同一份变异矩阵回归，别只写单测 —— `producer-source-invalid` 就是因为两个测试都直接调探测器函数、没走 `decode.mjs` 的接线，才带着一个永远为假的闸门发布出去（`scanner.finish()` 不返回 `header`）。这一轮同一份扫描又抓到了上面那条 v3 误报，而它在两个「有 runtime」的环境里都测不出来。
 
 ---
 
