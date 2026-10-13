@@ -193,6 +193,28 @@ refuse 的情形：链身份含对象、`retryId` 不是非空字符串、`retry
 
 每一条在工件里都**没有唯一修复答案**（中途的 turn 重编号是 `compact` 在切片边界做的事 —— 那里"切点"定义了答案；这里意图不可知；`tool/result` 答的是哪个调用，一旦错了也恢复不出来），所以只报告，repair 不动文件。
 
+### 第二族：surface 替换链（`surface-replacement-invalid`）
+
+同一份扫描换一族再跑，命中在**一份真实会话的 44 条 `tool/result` 替换**上：
+
+| 变异 | v4 折叠 | seed 构造 |
+|---|---|---|
+| `surfaceOp.startSeq` 移出 surface | `tool/result replacement range is not on the current surface` | `surface replace: start seq <n> not found in surface` |
+| `surfaceOp.endSeq` 移出 surface | 同上 | 同上 |
+| `sourceEventSeqs` 不再列出被遮蔽的行 | `replacement sourceEventSeqs omit a shadowed surface node` | `sourceEventSeqs must not be empty` |
+| `sourceEventSeqs` 整个删掉 | `replacement sourceEventSeqs requires an array` | 同一句 |
+
+判据照抄 `foldSurface`：`surfaceOp: "append"` 推入 surface；否则 `surfaceOp` 必须是对象、`startSeq`/`endSeq` 必须是**早于本行**且**当前就在 surface 上**的坐标、`sourceEventSeqs` 必须恰好列出被遮蔽的那些行、不能遮蔽受保护的 system 头（`system/message` 在 surface 非空而 `protectedHead` 为空时单独拒）。
+
+**走查在第一条违例处停下**（`surfaceHits` 返回单元素数组）：折叠本身在那里 abort，后面的下标全部失去意义，继续走只会造级联命中 —— 这一条与另外两个走查器不同，是刻意的。
+
+两条**从 seed 闸门学到的**、文档里没有的规则（搭 fixture 时被逐条拒出来的）：
+
+- 遮蔽 surface 的替换行是 **`tool/result`** —— `assistant/message` 会被拒：`assistant/message embeds its source stream and cannot carry sourceEventSeqs`（真实库里 44 条替换也全是 `tool/result`）。
+- 替换行 **只能改 content**：`tool/result surface replacement may change only content`，message 的 `id` 必须与被遮蔽的那行一致（技能文档里记过这条，这是它在 seed 侧的第二次现形）。
+
+只报告：`startSeq`/`endSeq` 一旦指不动了，它本来想遮蔽哪一段在工件里恢复不出来；`sourceEventSeqs` 是对 surface 的断言，surface 自己无法证实它。
+
 **加探测器时先跑扫描**：新探测器一上线就用同一份变异矩阵回归，别只写单测 —— `producer-source-invalid` 就是因为两个测试都直接调探测器函数、没走 `decode.mjs` 的接线，才带着一个永远为假的闸门发布出去（`scanner.finish()` 不返回 `header`）。这一轮同一份扫描又抓到了上面那条 v3 误报，而它在两个「有 runtime」的环境里都测不出来。
 
 ---

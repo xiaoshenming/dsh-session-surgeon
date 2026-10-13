@@ -15,6 +15,7 @@ import { catalogFactHits } from "./catalog-fact.mjs";
 import { literalPluginSourceHits, producerSourceHits } from "./message-shapes.mjs";
 import { turnStepImbalances, turnStepIssuesFrom } from "./turn-step.mjs";
 import { pairingHits, pairingIssuesFrom } from "./pairing.mjs";
+import { surfaceHits, surfaceIssuesFrom } from "./surface.mjs";
 import { prunePassHits } from "./prune-tail.mjs";
 import { retryChainHits } from "./retry-chains.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
@@ -48,6 +49,7 @@ export const HEALTH_RANK = [
   "prune-tail-outside-turn",
   "turn-step-mismatch",
   "tool-result-invalid",
+  "surface-replacement-invalid",
   "turn-end-while-step-open",
   "step-after-turn-end",
   "seq-gap-tail",
@@ -96,6 +98,7 @@ function emptyResult({ headerClass, frames, tornStart, zeroTailAt, issues, faile
     // An early return that omitted them made inspect throw "not iterable".
     turnStepImbalances: [],
     pairingHits: [],
+    surfaceHits: [],
     pruneHits: [],
     missingMembers: [],
     settlementHits: [],
@@ -487,6 +490,11 @@ export function decodeSessionBuffer(buf) {
     health = worse(health, issue.code);
     if (!issues.some((i) => i.code === issue.code)) issues.push(issue);
   }
+  const surfaceFound = fileVersion >= 4 ? surfaceHits(finished.events) : [];
+  for (const issue of surfaceIssuesFrom(surfaceFound)) {
+    health = worse(health, issue.code);
+    if (!issues.some((i) => i.code === issue.code)) issues.push(issue);
+  }
   const dangling = danglingToolCalls(finished.events);
   if (dangling.length > 0) {
     health = worse(health, "dangling-tool-call");
@@ -532,6 +540,7 @@ export function decodeSessionBuffer(buf) {
     overflowEvents: (finished.overflow ?? []).length,
     turnStepImbalances: turnStepHits,
     pairingHits: pairingFound,
+    surfaceHits: surfaceFound,
     producerSourceHits: sourceHits,
     pruneHits,
     missingMembers,
