@@ -169,7 +169,7 @@ refuse 的情形：链身份含对象、`retryId` 不是非空字符串、`retry
 
 ---
 
-## 3b. 配对与工具结果身份（已实现，只报告）
+## 3b. 关系折叠的拒读形状（已实现，只报告）
 
 用「假阴性扫描」量出来的（把一份真实 4376 事件 v4 会话逐条做语义变异，再逐条比对发布包的折叠判定）：**下面这些变异官方折叠会拒读，而我们当时仍报 `ok`** —— 假阴性比崩溃更隐蔽，用户会以为文件没问题。现在 `src/pairing.mjs` 覆盖这一族，两个健康码：
 
@@ -232,6 +232,26 @@ seed assistant/message at index N replay state disagrees with its embedded strea
 所以**报它们就是假阳性**：这三行不进探测器，不进 `HEALTH_RANK`。只有当一个文件要**被迁移**（代际提升）时那道闸门才会碰它 —— 那时它是迁移前置校验的事，不是「这份日志打不开」的事。同样处理的还有 `tool/result.message.content` 里塞进 released `tool-result` wrapper：关系折叠与 seed 都接受，不进探测器。
 
 **教训**：判「某变异官方拒读」之前，先确认**哪条路径会跑那道闸门**。同一个包里有两套校验（打开 vs 迁移），只有打开路径的拒绝才属于本工具的合同。
+
+### 第四族：PTC 子调用身份（`ptc-dispatch-invalid`）
+
+`run_code` 的子调用 id 是 `<父 callId>:ptc:<n>`，**两半都能在同一会话里重复**：provider 在助手重复一次调用时重发父 id，`n` 每次 `execute()` 从 1 重来。子调用活过它所在的 step（轮询后台任务最典型）就正好凑出这个形状 —— #9677 的真实 3569 事件会话因此永久打不开。
+
+本机真实库里有**一对**真实 dispatch（`session-e1c86df5`：`tool/ptc-dispatch-start` + `tool/ptc-dispatch`），拿它做变异：
+
+| 变异 | v4 折叠 | seed 构造 | 健康码 |
+|---|---|---|---|
+| 第二条 start 重复已结算的 `subCallId` | 同族拒（本机这份先撞 `PTC dispatch changes its rootCallId`） | **accept** | `ptc-dispatch-invalid` |
+| dispatch 复用已结算的 id | 同上 | **accept** | 同上 |
+| dispatch 的 `name` 与 start 不同 | `PTC dispatch does not match its start` | **accept** | 同上 |
+| `rootCallId` / `subCallId` 清空 | `PTC rootCallId requires a nonempty string` / `PTC subCallId …` | **accept** | 同上 |
+| `parentCallId` 不属于 rootCallId | `PTC parentCallId does not belong to rootCallId` | **accept** | 同上 |
+
+**注意 seed 那一列全是 accept** —— PTC 身份**只有关系折叠在查**，这是本文件里第一次出现这种分工（前三族都是两道闸门一起拒）。折叠正是打开一份已存日志时跑的那道闸门，所以拒读依然成立；但**别拿 `Session.fromRestore` 当判据**。
+
+判据照抄 `dispatch()`：`requireTurn`；三个 id 必须是非空字符串；已知 id 的 `rootCallId` 不能变；`parentCallId` 必须属于 root；start 不能重复；dispatch 必须有自己的 start（且未结算），并且 `rootCallId`/`parentCallId`/`name`/`arguments` 与 start 逐项深比相同（用官方的 `isDeepStrictEqual`）。
+
+**走查在第一条违例处停下**，与 surface 同因。只报告：id 本该怎么写恢复不出来。
 
 **加探测器时先跑扫描**：新探测器一上线就用同一份变异矩阵回归，别只写单测 —— `producer-source-invalid` 就是因为两个测试都直接调探测器函数、没走 `decode.mjs` 的接线，才带着一个永远为假的闸门发布出去（`scanner.finish()` 不返回 `header`）。这一轮同一份扫描又抓到了上面那条 v3 误报，而它在两个「有 runtime」的环境里都测不出来。
 
