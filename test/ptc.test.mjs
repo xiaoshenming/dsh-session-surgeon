@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { decodeSessionBuffer } from "../src/decode.mjs";
 import { encodeSession } from "../src/encode.mjs";
+import { planRepair } from "../src/repair.mjs";
 import { SESSION_FORMAT_VERSION } from "../src/runtime.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -149,4 +150,58 @@ test("the PTC walk stops at the first violation", async () => {
 test("a header-only artifact still carries the PTC array", async () => {
   const decoded = decodeSessionBuffer(await encodeSession({ header: HEADER, events: [] }));
   assert.deepEqual(decoded.ptcHits, []);
+});
+
+/** The #9677 shape: the same parent call re-issued, the counter back at 1. */
+function repeatedPair() {
+  const id = `${ROOT_CALL}:ptc:1`;
+  return ptcEvents([
+    ptc(id, "tool/ptc-dispatch-start"),
+    ptc(id, "tool/ptc-dispatch"),
+    ptc(id, "tool/ptc-dispatch-start"),
+    ptc(id, "tool/ptc-dispatch"),
+  ]);
+}
+
+test("a healthy file is not written", async () => {
+  const decoded = await decode(ptcEvents());
+  if (!READS_V4) return;
+  assert.equal(planRepair(decoded).mustWrite, false);
+});
+
+test("a repeated PTC sub-call id is repaired by renaming the later occurrence", async () => {
+  const decoded = await decode(repeatedPair());
+  if (!READS_V4) return;
+  assert.equal(decoded.health, "ptc-dispatch-invalid");
+
+  const plan = planRepair(decoded);
+  assert.equal(plan.mustWrite, true);
+  assert.ok(plan.actions.some((action) => action.code === "ptc-dispatch-invalid"));
+
+  // The first occurrence keeps the id a child row may already name, the second
+  // gets a fresh suffix, and nothing is deleted.
+  const starts = plan.events.filter((event) => event.type === "tool/ptc-dispatch-start");
+  assert.equal(starts.length, 2);
+  assert.equal(starts[0].data.subCallId, `${ROOT_CALL}:ptc:1`);
+  assert.equal(starts[1].data.subCallId, `${ROOT_CALL}:ptc:1::r1`);
+  assert.equal(plan.events.length, repeatedPair().length);
+
+  const after = await decode(plan.events);
+  assert.equal(after.health, "ok");
+  assert.deepEqual(after.ptcHits, []);
+  assert.equal(planRepair(after).mustWrite, false, "the repair must be idempotent");
+
+  const fold = await officialReader();
+  if (fold === null) return;
+  assert.throws(() => fold(repeatedPair()), "the released fold must refuse the repeated id");
+  assert.doesNotThrow(() => fold(plan.events));
+});
+
+test("a PTC violation that is not a repeated id is refused, not renamed", async () => {
+  const decoded = await decode(ptcEvents([ptc("", "tool/ptc-dispatch-start")]));
+  if (!READS_V4) return;
+  assert.equal(decoded.health, "ptc-dispatch-invalid");
+  const plan = planRepair(decoded);
+  assert.equal(plan.mustWrite, false);
+  assert.match(plan.refuse, /cannot repair the PTC dispatches/);
 });

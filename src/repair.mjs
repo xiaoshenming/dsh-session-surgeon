@@ -13,6 +13,7 @@ import { planPruneTail, prunePassHits } from "./prune-tail.mjs";
 import { turnStepImbalances } from "./turn-step.mjs";
 import { wrapFlatReplayStates } from "./replay-state.mjs";
 import { repairRetryChains, retryChainHits } from "./retry-chains.mjs";
+import { ptcHits, repairPtcSubCallIds } from "./ptc.mjs";
 import { settleAssistantFields } from "./settle.mjs";
 import { INSTALLED_CATALOG } from "./runtime.mjs";
 
@@ -32,6 +33,7 @@ const DEFAULT_STEPS = {
   pruneTail: true,
   legacyReplayState: true,
   retryChains: true,
+  ptcSubCalls: true,
   loneSurrogate: true,
   messageId: true,
   settlement: true,
@@ -197,6 +199,49 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
         code: "llm-retry-chain",
         detail: "renumbered " + chains.fixed + " llm/retry row(s) inside their policy chains (#9163)",
       });
+    }
+  }
+
+  if (steps.ptcSubCalls && (decoded.health === "ptc-dispatch-invalid" || ptcHits(events).length > 0)) {
+    const renumbered = repairPtcSubCallIds(events);
+    if (renumbered.renamed > 0) {
+      // A repeated id is only one of the ways this family is refused. Renaming
+      // cannot fix a dispatch that disagrees with its own start, so the result
+      // has to come back clean or nothing is written.
+      const still = ptcHits(renumbered.value);
+      if (still.length > 0) {
+        return {
+          actions,
+          events: decoded.events.slice(),
+          header,
+          mustWrite: false,
+          refuse:
+            "cannot repair the PTC dispatches — " +
+            still[0].type +
+            " at seq " +
+            still[0].seq +
+            ": " +
+            still[0].detail +
+            " (#9677); renaming a repeated sub-call id fixes only the repetition, and this row is refused for another reason",
+        };
+      }
+      events = renumbered.value;
+      actions.push({
+        code: "ptc-dispatch-invalid",
+        detail: "renamed " + renumbered.renamed + " row(s) in repeated PTC sub-call occurrence(s), leaving every first id untouched (#9677)",
+      });
+    } else if (decoded.health === "ptc-dispatch-invalid") {
+      const first = ptcHits(events)[0];
+      return {
+        actions,
+        events: decoded.events.slice(),
+        header,
+        mustWrite: false,
+        refuse:
+          "cannot repair the PTC dispatches — " +
+          (first === undefined ? "no repeated sub-call id found" : first.type + " at seq " + first.seq + ": " + first.detail) +
+          " (#9677); a repeated id can be renamed, this row cannot",
+      };
     }
   }
 

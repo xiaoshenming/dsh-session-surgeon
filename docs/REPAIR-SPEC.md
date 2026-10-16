@@ -251,7 +251,11 @@ seed assistant/message at index N replay state disagrees with its embedded strea
 
 判据照抄 `dispatch()`：`requireTurn`；三个 id 必须是非空字符串；已知 id 的 `rootCallId` 不能变；`parentCallId` 必须属于 root；start 不能重复；dispatch 必须有自己的 start（且未结算），并且 `rootCallId`/`parentCallId`/`name`/`arguments` 与 start 逐项深比相同（用官方的 `isDeepStrictEqual`）。
 
-**走查在第一条违例处停下**，与 surface 同因。只报告：id 本该怎么写恢复不出来。
+**走查在第一条违例处停下**，与 surface 同因。
+
+**可修的子集：重复的 subCallId（2026-10-16 实现为 `repairPtcSubCallIds`）。** 这一族里只有「重复」这一种在工件里还留着答案 —— 错的只有**键**。改法是把**后一次**出现（它自己的 `tool/ptc-dispatch-start`，加上它到「下一个同名 start」之间所有点名该 id 的行）改名，**第一次的 id 绝不动**：那个 id 可能已经被某个子调度写进 `parentCallId`，必须继续解析得到。这个方案来自 `argszero` 在 #9677 里指出的 `@argszero/dsh-ptc-subcall-guard`（它在交给会话工厂的 seed 上做同一件事）；我们把它落到**磁盘上的文件**，所以对每一个读端都生效，而不只是跑过那个守卫的进程。新 id = 旧 id + 最小的空闲 `::r<k>` 后缀，**空闲**指全文件范围内既没被用作 `subCallId` 也没被用作 `parentCallId`。
+
+实测（真实 4376 事件会话，带一对 dispatch）：造出 #9677 形状后折叠报 `PTC dispatch repeats subCallId`、seed 放行；改名后**两道闸门都接受**、`health=ok`、再跑 `planRepair` 不再写（幂等），**4376 行里只动了 2 行**。健康会话 `mustWrite=false`。除重复以外的行（`name` 与 start 不符、`rootCallId` 清空、`parentCallId` 不属于 root）仍然 refuse —— 改完必须重跑 `ptcHits`，仍不干净就整体 refuse，不允许用改名去遮一个「因为它坏」的行。
 
 **加探测器时先跑扫描**：新探测器一上线就用同一份变异矩阵回归，别只写单测 —— `producer-source-invalid` 就是因为两个测试都直接调探测器函数、没走 `decode.mjs` 的接线，才带着一个永远为假的闸门发布出去（`scanner.finish()` 不返回 `header`）。这一轮同一份扫描又抓到了上面那条 v3 误报，而它在两个「有 runtime」的环境里都测不出来。
 
