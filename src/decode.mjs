@@ -183,6 +183,7 @@ export function decodeSessionBuffer(buf) {
   }
 
   const scanner = new SessionLogScanner(Buffer.from(headerFrame.text, "utf8"));
+  const fileVersion = headerClass.header?.version;
   const issues = [];
   let tornText = null;
 
@@ -343,7 +344,7 @@ export function decodeSessionBuffer(buf) {
       issues.push(issue);
     }
   }
-  const migrationHits = migrationRefusalIssues(finished.events);
+  const migrationHits = migrationRefusalIssues(finished.events, fileVersion);
   if (migrationHits.length > 0) {
     if (MIGRATES_V0_ON_LOAD) {
       for (const hit of migrationHits) health = worse(health, hit.code);
@@ -368,7 +369,6 @@ export function decodeSessionBuffer(buf) {
       });
     }
   }
-  const fileVersion = headerClass.header?.version;
   if (typeof fileVersion === "number" && fileVersion >= 4) {
     const literalPlugin = literalPluginSourceHits(finished.events);
     if (literalPlugin.length > 0) {

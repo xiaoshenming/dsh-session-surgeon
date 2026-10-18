@@ -71,23 +71,62 @@ export function descriptorVersionHits(events) {
   return hits;
 }
 
-/** C: plugin message source pairs summary/sections with the wrong form (#6194). */
+/** Every `form` literal `pluginSourceValue` accepts. */
+const SOURCE_FORMS = new Set(["instructions", "catalog", "snapshot", "notice", "relay", "recall"]);
+
+/**
+ * C: a plugin message source whose `form` disagrees with `summary`/`sections`
+ * (#6194, #10096).
+ *
+ * `pluginSourceValue` is short enough to mirror exactly:
+ *   form undefined        -> return, neither member is examined
+ *   form not one of six   -> refuse
+ *   form "snapshot"       -> `sections` must be an array
+ *   other form + sections -> refuse
+ *   form "notice"         -> `summary` must be a string
+ *   other form + summary  -> refuse
+ *
+ * A `summary` can only live under `notice` and a `sections` array only under
+ * `snapshot`, so the renderable member that is present decides the form and the
+ * repair stays an alignment. A member that cannot be rendered at all (a
+ * non-string summary, a non-array `sections`) is dropped, and a `form` that no
+ * member justifies — an unknown literal, `notice` without a summary,
+ * `snapshot` without sections — is dropped too: keeping it would leave the
+ * session unreadable over a display hint.
+ *
+ * A `form` that already matches its members is left alone. Reporting those was
+ * a false positive on every v3 session carrying the system-prompt snapshot
+ * source (`form: "snapshot"` + `sections`), which the converter accepts.
+ *
+ * Section members are not validated here on purpose: the converter checks their
+ * keys, and dropping a structure we merely fail to recognise is worse than not
+ * reporting it.
+ */
 export function pluginSourceFormHits(events) {
   const hits = [];
   if (!Array.isArray(events)) return hits;
   for (const event of events) {
     for (const source of userMessageSources(event)) {
       if (typeof source.plugin !== "string" || source.plugin === "") continue;
-      const summary = Object.hasOwn(source, "summary");
-      const sections = Object.hasOwn(source, "sections");
-      if (!summary && !sections) continue;
-      // summary requires form "notice", sections requires form "snapshot".
-      // Aligning the display-only form keeps the member; only a genuine
-      // member pair conflict (both present) has to drop one of them.
-      if (!sections) hits.push({ seq: event.seq, setForm: "notice" });
-      else if (!summary) hits.push({ seq: event.seq, setForm: "snapshot" });
-      else if (source.form === "notice") hits.push({ seq: event.seq, drop: "sections" });
-      else hits.push({ seq: event.seq, setForm: "snapshot", drop: "summary" });
+      const form = source.form;
+      if (form === undefined) continue;
+      const hasSections = Object.hasOwn(source, "sections");
+      const hasSummary = Object.hasOwn(source, "summary");
+      const sections = hasSections && Array.isArray(source.sections);
+      const summary = hasSummary && typeof source.summary === "string";
+      const known = SOURCE_FORMS.has(form);
+      const patch = {};
+      if (hasSections && !sections) patch.sections = undefined;
+      if (hasSummary && !summary) patch.summary = undefined;
+      if (sections) {
+        if (form !== "snapshot") patch.form = "snapshot";
+        if (summary) patch.summary = undefined;
+      } else if (summary) {
+        if (form !== "notice") patch.form = "notice";
+      } else if (!known || form === "snapshot" || form === "notice") {
+        patch.form = undefined;
+      }
+      if (Object.keys(patch).length > 0) hits.push({ seq: event.seq, patch });
     }
   }
   return hits;
@@ -179,8 +218,30 @@ const MESSAGES = {
     "agent/inbox/spliced inserted message lacks the id/role the v0→v1 converter requires — the session is refused (#6559); repair fills an id and the validator's own user role",
 };
 
+/**
+ * The newest source generation whose converter owns each refusal rule.
+ *
+ * Loading a file runs every converter from its own generation upward, so a rule
+ * from stage N applies to a file at generation N or older — and to nothing
+ * newer. Running all six on every file reported `v0-plugin-source-form` on
+ * healthy v3 sessions, whose snapshot sources the v0 gate never sees, and
+ * `planRepair` then rewrote them.
+ */
+const MIGRATION_UPTO = {
+  "v0-preset-extra-member": 0,
+  "v0-descriptor-version": 0,
+  "v0-plugin-source-form": 0,
+  "v0-inbox-inserted-message": 0,
+  // #7824 is refused on both the v0→v1 and the v1→v2 edge.
+  "v0-chunk-provenance": 1,
+  // The v2→v3 source-kind table retires `instruction-hint`; the v0 gate has
+  // no kind whitelist at all and accepts it (measured against 0.2.1-rc.2).
+  "v0-retired-source-kind": 2,
+};
+
 /** One aggregated issue per refusal code, shaped like other decode issues. */
-export function migrationRefusalIssues(events) {
+export function migrationRefusalIssues(events, fileVersion) {
+  const version = typeof fileVersion === "number" ? fileVersion : 0;
   const groups = [
     ["v0-preset-extra-member", presetExtraMemberHits(events)],
     ["v0-descriptor-version", descriptorVersionHits(events)],
@@ -191,6 +252,7 @@ export function migrationRefusalIssues(events) {
   ];
   const issues = [];
   for (const [code, hits] of groups) {
+    if (version > MIGRATION_UPTO[code]) continue;
     if (hits.length === 0) continue;
     issues.push({
       code,
@@ -322,10 +384,7 @@ export function applyMigrationFixes(events, { expandRanges = false, converters =
       if (hit === undefined) return event;
       for (const source of userMessageSources(event)) {
         if (typeof source.plugin !== "string" || source.plugin === "") continue;
-        const patch = {};
-        if (hit.setForm !== undefined) patch.form = hit.setForm;
-        if (hit.drop !== undefined) patch[hit.drop] = undefined;
-        return patchSource(event, patch);
+        return patchSource(event, hit.patch);
       }
       return event;
     });

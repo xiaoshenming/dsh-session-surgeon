@@ -31,7 +31,7 @@ const BASE = [
   ev("user/message", 2, {
     id: "u1",
     role: "user",
-    source: { kind: "plugin", plugin: "dsh-chat-import", summary: "imported" },
+    source: { kind: "plugin", plugin: "dsh-chat-import", form: "relay", summary: "imported" },
     content: [{ type: "text", text: "go" }],
   }, { surfaceOp: "append" }),
 ];
@@ -67,8 +67,8 @@ test("plugin source form is aligned to its members; members are kept", () => {
   ];
   const hits = pluginSourceFormHits(events);
   assert.deepEqual(hits, [
-    { seq: 2, setForm: "notice" },
-    { seq: 3, setForm: "notice" },
+    { seq: 2, patch: { form: "notice" } },
+    { seq: 3, patch: { form: "notice" } },
   ]);
   const { value } = applyMigrationFixes(events, {});
   assert.equal(value[2].data.source.form, "notice");
@@ -77,24 +77,24 @@ test("plugin source form is aligned to its members; members are kept", () => {
   assert.equal(value[3].data.source.summary, "s");
 });
 
-test("summary+sections pair conflict drops only the extra member", () => {
+test("summary+sections pair conflict keeps the structured member", () => {
   const events = [
     ...BASE,
     ev("user/message", 3, {
       id: "u3",
       role: "user",
-      source: { kind: "plugin", plugin: "p", form: "notice", summary: "s", sections: [{ type: "text", text: "x" }] },
+      source: { kind: "plugin", plugin: "p", form: "notice", summary: "s", sections: [{ name: "n", text: "x" }] },
       content: [{ type: "text", text: "hi" }],
     }, { surfaceOp: "append" }),
   ];
   assert.deepEqual(pluginSourceFormHits(events), [
-    { seq: 2, setForm: "notice" },
-    { seq: 3, drop: "sections" },
+    { seq: 2, patch: { form: "notice" } },
+    { seq: 3, patch: { form: "snapshot", summary: undefined } },
   ]);
   const { value } = applyMigrationFixes(events, {});
-  assert.equal(value[3].data.source.form, "notice");
-  assert.equal(value[3].data.source.summary, "s");
-  assert.equal(Object.hasOwn(value[3].data.source, "sections"), false);
+  assert.equal(value[3].data.source.form, "snapshot");
+  assert.deepEqual(value[3].data.source.sections, [{ name: "n", text: "x" }]);
+  assert.equal(Object.hasOwn(value[3].data.source, "summary"), false);
 });
 
 test("llm/retry closes the attempt; provenance spanning the retry is flagged", () => {
@@ -234,7 +234,7 @@ test("planRepair fixes migration shapes end to end when the runtime migrates", a
 });
 
 test("migrationRefusalIssues aggregates one issue per code", () => {
-  const issues = migrationRefusalIssues(BASE);
+  const issues = migrationRefusalIssues(BASE, 0);
   assert.deepEqual(issues.map((i) => i.code), ["v0-preset-extra-member", "v0-plugin-source-form"]);
 });
 test("decode and planRepair handle both #6559 shapes end to end", async () => {
@@ -368,4 +368,113 @@ test("the official v0→v1→v2 chain refuses that row, and repair makes it pass
   assert.throws(() => runChain(chainRows), /not one complete ordered attempt/);
   const { value } = applyMigrationFixes(chainRows, { converters: true });
   assert.doesNotThrow(() => runChain(value));
+});
+
+/**
+ * Every `pluginSourceValue` shape we can name, with the verdict the released
+ * stage gives it. The gate is byte-identical in 0.2.0-rc.2 and 0.2.1-rc.2 and
+ * sits two lines earlier in 0.1.7-rc.2, so one table covers all three.
+ */
+const PLUGIN_SOURCE_SHAPES = [
+  ["no form + summary", { summary: "s" }, true],
+  ["relay + summary", { form: "relay", summary: "s" }, false],
+  ["notice + summary", { form: "notice", summary: "s" }, true],
+  ["notice without a summary", { form: "notice" }, false],
+  ["snapshot + sections", { form: "snapshot", sections: [{ name: "n", text: "t" }] }, true],
+  ["relay + sections", { form: "relay", sections: [{ name: "n", text: "t" }] }, false],
+  ["snapshot without sections", { form: "snapshot" }, false],
+  ["unknown form + summary", { form: "bogus", summary: "s" }, false],
+  ["unknown form alone", { form: "bogus" }, false],
+  ["relay + both members", { form: "relay", summary: "s", sections: [{ name: "n", text: "t" }] }, false],
+  ["notice + both members", { form: "notice", summary: "s", sections: [{ name: "n", text: "t" }] }, false],
+  ["notice + a non-string summary", { form: "notice", summary: 5 }, false],
+  ["sections that are not an array", { form: "snapshot", sections: "x" }, false],
+  ["empty summary under notice", { form: "notice", summary: "" }, true],
+];
+
+test("the plugin-source predicate matches the released gate shape for shape", async (t) => {
+  const paths = officialChainPaths();
+  if (!paths) {
+    t.skip("official session format packages not resolvable");
+    return;
+  }
+  const v0 = await import(paths.v0);
+  const sourceHeader = { type: "session", version: 0, id: "session-source-shape", createdAt: 1, cwd: "/tmp/source-shape", delegationDepth: 0 };
+  const rowsFor = (source) => [
+    ev("turn/start", 0, { turn: 1 }),
+    ev("user/message", 1, { id: "u1", role: "user", content: [{ type: "text", text: "hi" }], source }),
+    ev("turn/end", 2, { turn: 1, reason: { kind: "completed" } }),
+  ];
+  const gateAccepts = (rows) => {
+    const stage = v0.sessionFormatV0ToV1.createStage({ sourceHeader, sourceInheritedEventCount: 0 });
+    const sink = { emitEvent() {}, emitRun() {}, emitSystem() {} };
+    try {
+      for (const row of JSON.parse(JSON.stringify(rows))) stage.transformEvent(row, sink);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  for (const [label, members, accepted] of PLUGIN_SOURCE_SHAPES) {
+    const rows = rowsFor({ kind: "plugin", plugin: "dsh-chat-import", ...members });
+    assert.equal(gateAccepts(rows), accepted, label + ": the released gate moved");
+    // Report exactly the rows the gate refuses: a hit on an accepted row makes
+    // repair rewrite a healthy session.
+    assert.equal(pluginSourceFormHits(rows).length > 0, !accepted, label + ": our verdict must match the gate");
+    const { value } = applyMigrationFixes(rows, { converters: true });
+    assert.ok(gateAccepts(value), label + ": the repaired row must load");
+  }
+});
+
+test("a v0 refusal stays silent on generations its converter never sees", async () => {
+  // The shape every v3 session carries: the system-prompt snapshot source.
+  const snapshot = ev("user/message", 1, {
+    id: "u1",
+    role: "user",
+    source: { kind: "plugin", plugin: "@deepseek-ai/dsh-system-prompt", form: "snapshot", sections: [{ name: "sandbox:policy", text: "workspace-write" }] },
+    content: [{ type: "text", text: "go" }],
+  }, { surfaceOp: "append" });
+  assert.deepEqual(migrationRefusalIssues([snapshot], 3), []);
+  assert.deepEqual(migrationRefusalIssues([snapshot], 0), []);
+
+  const retired = ev("user/message", 1, {
+    id: "u1",
+    role: "user",
+    source: { kind: "instruction-hint", plugin: "anchored-tool-bootstrap" },
+    content: [{ type: "text", text: "go" }],
+  }, { surfaceOp: "append" });
+  // The v0 gate has no kind whitelist and accepts it; only v2→v3 retires it.
+  assert.deepEqual(migrationRefusalIssues([retired], 3), []);
+  assert.deepEqual(migrationRefusalIssues([retired], 2).map((issue) => issue.code), ["v0-retired-source-kind"]);
+
+  const preset = ev("permission/preset", 0, { preset: "workspace-write", origin: "default" });
+  assert.deepEqual(migrationRefusalIssues([preset], 0).map((issue) => issue.code), ["v0-preset-extra-member"]);
+  for (const version of [1, 2, 3, 4]) assert.deepEqual(migrationRefusalIssues([preset], version), []);
+});
+
+test("a v3 session with the system-prompt snapshot source needs no repair", async (t) => {
+  // Without the runtime a v3 artifact is `foreign-version` and the decode
+  // returns before any detector runs, so this shape is only observable there.
+  if (!MIGRATES_V0_ON_LOAD) {
+    t.skip("no session format runtime installed");
+    return;
+  }
+  const v3 = { version: 3, id: "session-v3-snapshot", createdAt: 1, cwd: "/tmp/v3-snapshot", isSeeded: false, delegationDepth: 0 };
+  const events = [
+    ev("turn/start", 0, { turn: 1 }),
+    ev("step/start", 1, { turn: 1, step: 1 }),
+    ev("user/message", 2, {
+      id: "u1",
+      role: "user",
+      source: { kind: "plugin", plugin: "@deepseek-ai/dsh-system-prompt", form: "snapshot", sections: [{ name: "sandbox:policy", text: "workspace-write" }] },
+      content: [{ type: "text", text: "go" }],
+    }, { surfaceOp: "append" }),
+    ev("step/end", 3, { turn: 1, step: 1 }),
+    ev("turn/end", 4, { turn: 1, reason: { kind: "completed" } }),
+  ];
+  const decoded = decodeSessionBuffer(await encodeSession({ header: v3, events, packChunks: false }));
+  assert.equal(decoded.header.version, 3);
+  assert.deepEqual(decoded.issues.map((issue) => issue.code), []);
+  assert.equal(decoded.health, "ok");
+  assert.equal(planRepair(decoded).mustWrite, false);
 });

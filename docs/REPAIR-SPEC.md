@@ -37,7 +37,7 @@
 | `llm-retry-chain` | 同一条 policy 链（`turn`/`step`/`provider`/`policyKey`）里的 `llm/retry` 没有逐次 +1，或一条链用了多个 `retryId` | **拒载**：关系折叠 `llm/retry skips its policy attempt sequence` / `llm/retry must keep one retryId per policy chain` → `stored session "…" is corrupt`，且写入时静默、下次打开才暴露（#9163） | 次数 = 该链内的顺序（1..N），id = 该链第一个 `retryId`；`llm/retry-started` 按原 `(retryId, retry)` 配对表跟着改。链身份不可比、配对不上、或新链复用了已有 id → refuse，不猜 |
 | `v0-preset-extra-member` | `permission/preset` data 带冻结清单外成员（如 `origin`） | **0.1.5** v0→v1 迁移拒读（#6189）；v0 仍能打开 | 仅当本机 format ≥ 1 时只保留 `preset`，权限语义不变 |
 | `v0-descriptor-version` | `subagent/descriptor` data.version ≠ 3 | **0.1.5** 迁移拒读 v0 工件（#6151） | 仅当本机 format ≥ 1 时把 version 改成 3（成员形状相同） |
-| `v0-plugin-source-form` | 插件消息来源 `summary`/`sections` 与 `form` 不匹配 | **0.1.5** 迁移拒读（#6194） | 仅当本机 format ≥ 1 时**对齐 `form`**（summary→notice，sections→snapshot），保住成员；仅 summary+sections 并存冲突才删其一；正文不动 |
+| `v0-plugin-source-form` | 插件消息来源的 `form` 与 `summary`/`sections` 对不上（`form` 缺失时**不判**——官方在 `form === undefined` 处直接 return，两个成员都不看） | **0.1.5** v0→v1 迁移拒读（#6194；#10096 是同一闸门的现场。0.2.0-rc.2 与 0.2.1-rc.2 的该文件 SHA256 相同） | 仅当本机 format ≥ 1 时**对齐 `form`**：`sections` 是数组→`snapshot`，否则字符串 `summary`→`notice`；两者并存时保留 `sections`、丢掉展示用 `summary`（保住结构化内容）；无法渲染的成员（非数组 `sections`、非字符串 `summary`）与没有成员可依据的 `form`（未知字面量、`notice` 无 `summary`、`snapshot` 无 `sections`）连同该成员一起丢掉——否则整条会话会为一条展示提示打不开。正文不动。**只在 v0 工件上判**：该闸门只在 v0→v1 阶段运行，v3 会话里 `form:"snapshot"` + `sections` 完全合法（本机两份真实 v3 会话曾因此被报码并计划改写） |
 | `v0-chunk-provenance` | `assistant/message` 分块引用不是同一 (turn,step) 自上次尝试边界（`turn/end`/`step/end`/`llm/retry`/`llm/retry-started`，同官方 `closesAttempt`）以来的完整有序一段 | **v0→v1 与 v1→v2 两道迁移都拒读**（#6175；[#7824](https://github.com/deepseek-ai/deepseek-harness/discussions/7824) 是声明范围把 `session/end-seed` 这类非分块事件也扫了进去；[#3](https://github.com/xiaoshenming/dsh-session-surgeon/issues/3) 漏判重试边界） | 仅当本机 format ≥ 1 时改引用磁盘上已有的分块 seq；无分块时改为空引用；`surfaceOp` 为 replace 的消息（/rewind 撤回标记）**绝不动**——其引用是 `applySurface` 要求的 shadowed 节点 |
 | `v0-retired-source-kind` | 消息 `source.kind` 是已退役字面量（如 `instruction-hint`），不在 v2→v3 `SOURCE_KINDS` 里 | **0.1.5 / 0.1.6 / 0.1.7-rc.1 / 0.1.7-rc.2** 的 v2→v3 `assertSource` 按未分类拒读（#6559） | 仅当本机 format ≥ 1 时把 kind 改成同名后继（`plugin`），键集必须与 released plugin 来源完全一致；多出未知成员的一律不碰（只报告） |
 | `v0-inbox-inserted-message` | `agent/inbox/spliced` 的 `inserted[]` 消息缺 `id` / `role` | v0→v1 `messageValue` 拒读整条会话（#6559） | 仅当本机 format ≥ 1 时补 `id`（与 `message-missing-id` 同一做法）与校验器实参写死的 `role: "user"`；正文/来源不动；content、source 缺失或带未知成员的不碰 |
@@ -50,6 +50,17 @@
 | `empty-tool-call-id` | `assistant/message` 的 `tool-call` 或 `tool/call` 的 id 为空（#5182） | 文件能打开，下次模型请求永久 400 | inspect 定位；**不编** callId |
 | `unknown-type` | type 不在本 build 词表且无 ignorable | 可能拒载 | 保留，标出来 |
 | `packed-surface-skip` | 没展开 packed 行看到的假跳号 | 健康 | inspect 必须先展开 |
+
+### 1.1 每条判据只在自己的代际上成立
+
+装载一份文件会从它自己的代际起，依次跑**每一道**上游迁移（v0 走 v0→v1→v2→v3→v4，v2 只走 v2→v3→v4），所以：
+
+- 属于阶段 N 的判据，只对**代际 ≤ N** 的文件成立；
+- 代际比 N 新的文件根本不会经过那道闸门，拿它去判就是**假阳性**。
+
+`migrationRefusalIssues(events, fileVersion)` 按这张表收口：`v0-preset-extra-member` / `v0-descriptor-version` / `v0-plugin-source-form` / `v0-inbox-inserted-message` 到 v0，`v0-chunk-provenance` 到 v1（v0→v1 与 v1→v2 两道边都拒），`v0-retired-source-kind` 到 v2（v0 闸门没有 kind 白名单，实测 `instruction-hint` 在 v0→v1 上通过）。
+
+这条不是理论问题：本机两份真实 v3 会话带着 `@deepseek-ai/dsh-system-prompt` 的 `{form:"snapshot", sections}` 来源（完全合法），却被报成 `v0-plugin-source-form`，`planRepair` 给出 `mustWrite: true` —— 用户一旦 `--apply`，健康文件就被重写一遍。同类错在 v4 侧已经踩过（配对/表面/PTC 三条都按 `fileVersion >= 4` 收口），这里是把 v0 家族补齐。
 
 ---
 
