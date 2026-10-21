@@ -114,6 +114,11 @@ test("decode keeps overflow after the first seq defect", async () => {
   assert.ok((decoded.overflow?.length ?? 0) >= 4);
   assert.equal(decoded.overflow[0].seq, 6);
   assert.ok(decoded.events.every((event, i) => event.seq === i));
+  // A bare "seq gap" reads like data loss; when the tail is the recovery
+  // closers the report has to say the live writer can be spliced back (#10429).
+  const gap = decoded.issues.find((issue) => issue.code === "seq-gap-committed");
+  assert.equal(gap?.stitch, true);
+  assert.match(gap.message, /stale-writer race \(#1586\/#10429\): repair drops the \d+ crash-recovery closer/);
 });
 
 test("repair --apply stitches the live writer instead of truncating at the first gap", async () => {

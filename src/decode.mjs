@@ -18,6 +18,7 @@ import { pairingHits, pairingIssuesFrom } from "./pairing.mjs";
 import { surfaceHits, surfaceIssuesFrom } from "./surface.mjs";
 import { ptcHits, ptcIssuesFrom } from "./ptc.mjs";
 import { prunePassHits } from "./prune-tail.mjs";
+import { stitchLiveWriterTail } from "./stitch.mjs";
 import { retryChainHits } from "./retry-chains.mjs";
 import { titleReferenceHits, titleIssuesFrom, TITLE_CODE } from "./title.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
@@ -247,11 +248,22 @@ export function decodeSessionBuffer(buf) {
   issues.push(...finished.issues);
   unknownTypes.push(...finished.unknownTypes);
 
+  // A seq that goes backwards is usually a stale-writer race, and when the tail
+  // is exactly the crash-recovery closers the plan can splice the live writer
+  // back in. Say so here: the bare "seq gap" reads like data loss (#1586).
+  const stitch = stitchLiveWriterTail(finished.events, finished.overflow ?? []);
   for (const issue of finished.issues) {
     if (issue.code === "seq-gap-committed") health = worse(health, "seq-gap-committed");
     else if (issue.code === "seq-gap-tail") health = worse(health, "seq-gap-tail");
     else if (issue.code === "unparsable-line") health = worse(health, "unparsable-line");
     else if (issue.code === "packed-overlap-suffix") health = worse(health, "packed-overlap-suffix");
+    if (stitch && (issue.code === "seq-gap-tail" || issue.code === "seq-gap-committed")) {
+      issue.stitch = true;
+      issue.message +=
+        " — this is the stale-writer race (#1586/#10429): repair drops the " +
+        stitch.droppedClosers + " crash-recovery closer(s) at seq " + stitch.stitchSeq +
+        " and keeps the " + stitch.keptLive + " live-writer row(s) that reuse them";
+    }
   }
   if (failedFrames > 0) health = worse(health, "failed-middle-frame");
   if (tornStart !== undefined) {
