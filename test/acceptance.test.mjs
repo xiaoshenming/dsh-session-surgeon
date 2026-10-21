@@ -56,7 +56,7 @@ test("CLI index and export --format paths work on fixtures", async () => {
   assert.match(exported.stdout, /"type":"session"/);
 });
 
-test("scan reports header-frame-corrupt when frame 0 has two lines", async () => {
+test("scan reports header-frame-multiline when frame 0 has two lines", async () => {
   const { compressFrame } = await import("../src/zstd-frames.mjs");
   const { scanHeader } = await import("../src/scan.mjs");
   const extra = JSON.stringify({
@@ -80,7 +80,9 @@ test("scan reports header-frame-corrupt when frame 0 has two lines", async () =>
     kind: "zstd",
     tmpFiles: [],
   });
-  assert.equal(report.health, "header-frame-corrupt");
+  // A file compressed into one frame still has a readable header line; the
+  // reader refuses it for the frame boundary alone (discussion #10440).
+  assert.equal(report.health, "header-frame-multiline");
 });
 
 test("scan sees fixtures when laid out as project/id/session.jsonl.zstd", async () => {

@@ -47,7 +47,20 @@ export async function scanHeader(entry) {
     return { ...base, frames: 0, health: "no-zstd-frame" };
   }
   const headerFrame = frames[0];
-  if (!headerFrame.ok || headerFrame.torn || !isExactHeaderRecord(headerFrame.text ?? "")) {
+  // Same split as `decode.mjs`: a file compressed into one frame is refused by
+  // the reader for the frame boundary alone, and its first line is still a
+  // header (discussion #10440).
+  let headerText = headerFrame.text ?? "";
+  let multiline = false;
+  if (headerFrame.ok && !headerFrame.torn && !isExactHeaderRecord(headerText)) {
+    const cut = headerText.indexOf("\n");
+    const firstLine = cut < 0 ? headerText : headerText.slice(0, cut + 1);
+    if (cut >= 0 && isExactHeaderRecord(firstLine) && cut + 1 < headerText.length) {
+      multiline = true;
+      headerText = firstLine;
+    }
+  }
+  if (!headerFrame.ok || headerFrame.torn || !isExactHeaderRecord(headerText)) {
     return {
       ...base,
       frames: frames.length,
@@ -55,10 +68,12 @@ export async function scanHeader(entry) {
       error: headerFrame.error ?? "corrupt Zstandard session log: first frame is not exactly one header line",
     };
   }
-  const classified = classifyHeader(headerFrame.text);
+  const classified = classifyHeader(headerText);
   const failed = frames.filter((f) => !f.ok && !f.torn).length;
   const torn = frames.some((f) => f.torn);
-  let health = classified.ok ? (failed ? "failed-middle-frame" : "header-ok") : classified.code;
+  let health = classified.ok
+    ? (multiline ? "header-frame-multiline" : failed ? "failed-middle-frame" : "header-ok")
+    : classified.code;
   if (torn && classified.ok && health === "header-ok") flags.push("torn-tail");
   return {
     ...base,

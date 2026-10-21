@@ -19,6 +19,7 @@ import { surfaceHits, surfaceIssuesFrom } from "./surface.mjs";
 import { ptcHits, ptcIssuesFrom } from "./ptc.mjs";
 import { prunePassHits } from "./prune-tail.mjs";
 import { retryChainHits } from "./retry-chains.mjs";
+import { titleReferenceHits, titleIssuesFrom, TITLE_CODE } from "./title.mjs";
 export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
 export { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 export { turnStepImbalances } from "./turn-step.mjs";
@@ -27,6 +28,7 @@ export { prunePassHits, planPruneTail } from "./prune-tail.mjs";
 /** Worst-first list of every health code `decodeSessionBuffer` can report. */
 export const HEALTH_RANK = [
   "header-frame-corrupt",
+  "header-frame-multiline",
   "header-parse-error",
   "foreign-version",
   "retired-fields",
@@ -52,6 +54,7 @@ export const HEALTH_RANK = [
   "tool-result-invalid",
   "surface-replacement-invalid",
   "ptc-dispatch-invalid",
+  "title-references-invalid",
   "turn-end-while-step-open",
   "step-after-turn-end",
   "seq-gap-tail",
@@ -106,6 +109,7 @@ function emptyResult({ headerClass, frames, tornStart, zeroTailAt, issues, faile
     missingMembers: [],
     settlementHits: [],
     catalogHits: [],
+    titleHits: [],
     health,
   };
 }
@@ -149,7 +153,21 @@ export function decodeSessionBuffer(buf) {
   }
 
   const headerFrame = frames[0];
-  if (!headerFrame.ok || headerFrame.torn || !isExactHeaderRecord(headerFrame.text ?? "")) {
+  // A writer that compresses the whole file into one frame leaves the header line
+  // at the front of it. The reader refuses that for the frame boundary alone
+  // ("first frame is not exactly one header line") although every line is intact,
+  // so split the first line off and keep decoding - repair re-frames the file.
+  let headerText = headerFrame.text ?? "";
+  let leadingBody = null;
+  if (headerFrame.ok && !headerFrame.torn && !isExactHeaderRecord(headerText)) {
+    const cut = headerText.indexOf("\n");
+    const firstLine = cut < 0 ? headerText : headerText.slice(0, cut + 1);
+    if (cut >= 0 && isExactHeaderRecord(firstLine) && cut + 1 < headerText.length) {
+      leadingBody = headerText.slice(cut + 1);
+      headerText = firstLine;
+    }
+  }
+  if (!headerFrame.ok || headerFrame.torn || !isExactHeaderRecord(headerText)) {
     const issues = [{
       code: "header-frame-corrupt",
       message: headerFrame.error ?? "corrupt Zstandard session log: first frame is not exactly one header line",
@@ -166,7 +184,8 @@ export function decodeSessionBuffer(buf) {
     });
   }
 
-  const headerClass = classifyHeader(headerFrame.text);
+  const headerClass = classifyHeader(headerText);
+  if (leadingBody !== null) headerClass.framing = "multiline";
   if (!headerClass.ok) {
     health = headerClass.code === "foreign-version" || headerClass.code === "retired-fields"
       ? headerClass.code
@@ -182,10 +201,21 @@ export function decodeSessionBuffer(buf) {
     });
   }
 
-  const scanner = new SessionLogScanner(Buffer.from(headerFrame.text, "utf8"));
+  const scanner = new SessionLogScanner(Buffer.from(headerText, "utf8"));
   const fileVersion = headerClass.header?.version;
   const issues = [];
   let tornText = null;
+  if (leadingBody !== null) {
+    health = worse(health, "header-frame-multiline");
+    issues.push({
+      code: "header-frame-multiline",
+      message:
+        "the first frame carries the header line and " + String(Buffer.byteLength(leadingBody, "utf8")) +
+        " byte(s) of body - the reader refuses the whole log for that frame boundary alone (first frame is not exactly one header line); every line is intact, so repair writes the header line into its own frame (discussion #10440)",
+      frame: 0,
+    });
+    scanner.write(Buffer.from(leadingBody, "utf8"));
+  }
 
   for (let fi = 1; fi < frames.length; fi++) {
     const frame = frames[fi];
@@ -503,6 +533,11 @@ export function decodeSessionBuffer(buf) {
     health = worse(health, issue.code);
     if (!issues.some((i) => i.code === issue.code)) issues.push(issue);
   }
+  const titleFound = fileVersion >= 4 ? titleReferenceHits(finished.events) : [];
+  for (const issue of titleIssuesFrom(titleFound)) {
+    health = worse(health, issue.code);
+    if (!issues.some((i) => i.code === issue.code)) issues.push(issue);
+  }
   const dangling = danglingToolCalls(finished.events);
   if (dangling.length > 0) {
     health = worse(health, "dangling-tool-call");
@@ -550,6 +585,7 @@ export function decodeSessionBuffer(buf) {
     pairingHits: pairingFound,
     surfaceHits: surfaceFound,
     ptcHits: ptcFound,
+    titleHits: titleFound,
     producerSourceHits: sourceHits,
     pruneHits,
     missingMembers,

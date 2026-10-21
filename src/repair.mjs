@@ -14,6 +14,7 @@ import { turnStepImbalances } from "./turn-step.mjs";
 import { wrapFlatReplayStates } from "./replay-state.mjs";
 import { repairRetryChains, retryChainHits } from "./retry-chains.mjs";
 import { ptcHits, repairPtcSubCallIds } from "./ptc.mjs";
+import { repairTitleReferences } from "./title.mjs";
 import { settleAssistantFields } from "./settle.mjs";
 import { INSTALLED_CATALOG } from "./runtime.mjs";
 
@@ -36,6 +37,8 @@ const DEFAULT_STEPS = {
   ptcSubCalls: true,
   loneSurrogate: true,
   messageId: true,
+  headerFraming: true,
+  titleReferences: true,
   settlement: true,
   closers: true,
 };
@@ -106,6 +109,17 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
   let events = decoded.events.map((event) => event);
   const overflow = Array.isArray(decoded.overflow) ? decoded.overflow : [];
   let stitchedLive = false;
+
+  if (steps.headerFraming && decoded.headerClass?.framing === "multiline") {
+    // Frame 0 carries the header line and part of the body. Nothing in the log
+    // is wrong: re-encoding writes the header line into its own frame, which is
+    // the only thing the reader checks here (discussion #10440).
+    actions.push({
+      code: "header-frame-multiline",
+      detail:
+        "wrote the header line into its own frame; every body line is kept as-is (discussion #10440)",
+    });
+  }
 
   if (steps.liveWriter) {
     const stitched = stitchLiveWriterTail(events, overflow);
@@ -393,6 +407,19 @@ export function planRepair(decoded, { steps: stepOverrides } = {}) {
     if (settled.actions.length > 0) {
       events = settled.value;
       actions.push(...settled.actions);
+    }
+  }
+
+  if (steps.titleReferences) {
+    const titles = repairTitleReferences(events);
+    if (titles.fixed > 0) {
+      events = titles.value;
+      actions.push({
+        code: "title-references-invalid",
+        detail:
+          "emptied a user title citation list / dropped citations that name no earlier human user/message on " +
+          titles.fixed + " session/title event(s) (discussion #10440)",
+      });
     }
   }
 

@@ -3,6 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { compressFrame, decodeFrames, scanZstdFrames } from "../src/zstd-frames.mjs";
 import { decodeSessionBuffer } from "../src/decode.mjs";
+import { encodeSession } from "../src/encode.mjs";
+import { planRepair } from "../src/repair.mjs";
 import { classifyHeader, parseHeaderRecord, toHeaderLine } from "../src/header.mjs";
 import { decodeStorageRecord, packChunkRuns } from "../src/packed.mjs";
 import { isExactHeaderRecord } from "../src/scanner.mjs";
@@ -19,12 +21,18 @@ function ev(type, seq, data) {
   return { type, seq, time: 10 + seq, data };
 }
 
-test("header frame with a second line uses the official first-frame message", async () => {
+test("a body inside the header frame is reported and still decoded (#10440)", async () => {
   const extra = JSON.stringify(header) + "\n" + JSON.stringify(ev("turn/start", 0, { turn: 1 })) + "\n";
   const buf = await compressFrame(extra);
   const decoded = decodeSessionBuffer(buf);
-  assert.equal(decoded.health, "header-frame-corrupt");
+  // The reader refuses this file for the frame boundary alone
+  // ("first frame is not exactly one header line"), but every line is intact,
+  // so the split is reported instead of dropping the body.
+  assert.equal(decoded.health, "header-frame-multiline");
   assert.match(decoded.issues[0]?.message ?? "", /first frame is not exactly one header line/);
+  assert.equal(decoded.headerClass.framing, "multiline");
+  assert.equal(decoded.header.id, header.id);
+  assert.deepEqual(decoded.events.map((event) => event.type), ["turn/start"]);
   assert.equal(isExactHeaderRecord(extra), false);
 });
 
@@ -146,4 +154,32 @@ test("unknown-type is kept", async () => {
   const decoded = decodeSessionBuffer(buf);
   assert.equal(decoded.health, "unknown-type");
   assert.ok(decoded.events.some((e) => e.type === "custom/future"));
+});
+test("a single-frame log is decoded whole and repaired into the required layout (#10440)", async () => {
+  const rows = [
+    ev("turn/start", 0, { turn: 1 }),
+    ev("step/start", 1, { turn: 1, step: 1 }),
+    ev("step/end", 2, { turn: 1, step: 1 }),
+    ev("turn/end", 3, { turn: 1, reason: { kind: "completed" } }),
+  ];
+  const whole = JSON.stringify(header) + "\n" + rows.map((row) => JSON.stringify(row)).join("\n") + "\n";
+  const decoded = decodeSessionBuffer(await compressFrame(whole));
+  assert.equal(decoded.health, "header-frame-multiline");
+  assert.deepEqual(decoded.events, rows, "the body inside the header frame is not dropped");
+  assert.equal(decoded.header.id, header.id);
+
+  const plan = planRepair(decoded);
+  assert.equal(plan.mustWrite, true);
+  assert.deepEqual(plan.actions.map((action) => action.code), ["header-frame-multiline"]);
+  const after = decodeSessionBuffer(await encodeSession({ header: plan.header, events: plan.events, packChunks: false }));
+  assert.equal(after.health, "ok");
+  assert.deepEqual(after.events, rows, "every event survives the re-framing");
+  assert.equal(after.headerClass.framing, undefined);
+
+  // The split also has to join with frames that follow the oversized first one.
+  const head = await compressFrame(JSON.stringify(header) + "\n" + JSON.stringify(rows[0]) + "\n");
+  const tail = await compressFrame(rows.slice(1).map((row) => JSON.stringify(row)).join("\n") + "\n");
+  const joined = decodeSessionBuffer(Buffer.concat([head, tail]));
+  assert.equal(joined.health, "header-frame-multiline");
+  assert.deepEqual(joined.events, rows);
 });
