@@ -5,7 +5,7 @@ import { SessionLogScanner, isExactHeaderRecord } from "./scanner.mjs";
 import { hasCompressedSeqRanges } from "./provenance.mjs";
 import { MIGRATION_REFUSES_DUPLICATE_TOOL_CALL_IDS, SUPPORTS_NATIVE_SEQ_RANGES } from "./runtime.mjs";
 import { forwardEventShims } from "./forward-events.mjs";
-import { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
+import { danglingToolCalls, emptyToolCallIds, missingMessageIds, turnEndReasonHits } from "./integrity.mjs";
 import { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 import { flatReplayStateHits } from "./replay-state.mjs";
 import { MIGRATES_V0_ON_LOAD, migrationRefusalIssues } from "./migrate.mjs";
@@ -21,7 +21,7 @@ import { prunePassHits } from "./prune-tail.mjs";
 import { stitchLiveWriterTail } from "./stitch.mjs";
 import { retryChainHits } from "./retry-chains.mjs";
 import { titleReferenceHits, titleIssuesFrom, TITLE_CODE } from "./title.mjs";
-export { danglingToolCalls, emptyToolCallIds, missingMessageIds } from "./integrity.mjs";
+export { danglingToolCalls, emptyToolCallIds, missingMessageIds, turnEndReasonHits } from "./integrity.mjs";
 export { duplicateAdvertisedToolCallIds } from "./duplicates.mjs";
 export { turnStepImbalances } from "./turn-step.mjs";
 export { prunePassHits, planPruneTail } from "./prune-tail.mjs";
@@ -67,6 +67,7 @@ export const HEALTH_RANK = [
   "packed-overlap-suffix",
   "unknown-type",
   "empty-tool-call-id",
+  "turn-end-reason-invalid",
   "dangling-tool-call",
   "ok",
 ];
@@ -549,6 +550,22 @@ export function decodeSessionBuffer(buf) {
   for (const issue of titleIssuesFrom(titleFound)) {
     health = worse(health, issue.code);
     if (!issues.some((i) => i.code === issue.code)) issues.push(issue);
+  }
+  const badReasons = fileVersion >= 4 ? turnEndReasonHits(finished.events) : [];
+  if (badReasons.length > 0) {
+    health = worse(health, "turn-end-reason-invalid");
+    if (!issues.some((i) => i.code === "turn-end-reason-invalid")) {
+      const seqs = badReasons.map((hit) => hit.seq);
+      issues.push({
+        code: "turn-end-reason-invalid",
+        message:
+          "turn/end at seq " + seqs.slice(0, 12).join(", ") + " carries reason " + badReasons[0].reason +
+          " — neither released gate reads turn/end.data.reason, so the log loads and our other detectors stay quiet, but the official chat client reads reason.kind without a null guard and throws, leaving the session blank every time it is opened (#10489); whether the turn completed, errored or was cancelled is not in the artifact, so repair only reports",
+        seqs,
+        count: badReasons.length,
+        reasons: [...new Set(badReasons.map((hit) => hit.reason))].slice(0, 5),
+      });
+    }
   }
   const dangling = danglingToolCalls(finished.events);
   if (dangling.length > 0) {

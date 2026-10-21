@@ -108,3 +108,34 @@ export function missingMessageIds(events) {
   }
   return seqs;
 }
+
+/**
+ * A `turn/end` whose `reason` is not an object carrying a string `kind`.
+ *
+ * Neither released gate looks at it: the relationships fold compares only the
+ * turn coordinates, and `Session.fromRestore` never reads `reason`, so a row
+ * with `reason: null` is written and loaded happily. The official chat client
+ * then reads `turn.end.data.reason.kind` with no null guard and throws, which
+ * leaves the session blank every time it is opened (#10489: `agent.cancel()`
+ * with a `kind` outside `AgentCancelCause` throws `unreachable variant` and
+ * lands exactly this row, and one third-party plugin's breaker is enough).
+ *
+ * Reported only. Whether the turn completed, errored or was cancelled is not
+ * in the artifact, and inventing a reason would put a guess where the reader
+ * and the UI both expect a record of what happened.
+ * @returns {{seq:number, reason:string}[]}
+ */
+export function turnEndReasonHits(events) {
+  const hits = [];
+  if (!Array.isArray(events)) return hits;
+  for (const event of events) {
+    if (event?.type !== "turn/end") continue;
+    const reason = event.data?.reason;
+    if (typeof reason === "object" && reason !== null && typeof reason.kind === "string" && reason.kind !== "") continue;
+    hits.push({
+      seq: event.seq,
+      reason: reason === undefined ? "missing" : reason === null ? "null" : JSON.stringify(reason),
+    });
+  }
+  return hits;
+}
