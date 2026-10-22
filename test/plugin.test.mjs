@@ -17,7 +17,12 @@ test("plugin/index.mjs imports without throwing", async () => {
 test("package.json keeps @deepseek-ai/* out of dependencies", async () => {
   const pkg = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8"));
   assert.equal(pkg.dependencies, undefined);
-  assert.ok(pkg.peerDependencies["@deepseek-ai/dsh-tools"]);
+  // A capped peer range is not a safety net: ">=0.1.0-rc.6 <0.2.0" made the
+  // desktop manager refuse to load this plugin on DSH 0.2.1-rc.2, and the only
+  // export we use (defineTool) is still there. Never cap the major.
+  const tools = pkg.peerDependencies["@deepseek-ai/dsh-tools"];
+  assert.ok(tools);
+  assert.ok(!tools.includes("<"), "a peer upper bound blocks every newer harness: " + tools);
   assert.equal(pkg.dsh.bundle.patch, "./cordis.patch.yml");
   assert.ok(pkg.exports["."].includes("plugin/index.mjs"));
   assert.equal(pkg.exports["./client"], "./plugin/client.js");

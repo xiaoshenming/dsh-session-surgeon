@@ -10,7 +10,7 @@
 ## 硬约束
 
 1. ESM only（`"type":"module"`），Node `^22.19.0 || >=24`。
-2. **零 runtime dependencies**。`@deepseek-ai/*` 只允许出现在 peerDependencies / optional 注释，禁止放进 dependencies。
+2. **零 runtime dependencies**。`@deepseek-ai/*` 只允许出现在 peerDependencies / optional 注释，禁止放进 dependencies。**peer 范围不许封顶**：桌面端插件管理器会拿 `peerDependencies` 跟当前 DSH 的版本比对，写死上限（`>=0.1.0-rc.6 <0.2.0`）的结果是 0.2.x 上一律拒绝加载 —— 而且不给任何降级机会。我们真正用到的只有 `defineTool`，缺了就跳过注册，所以下限有意义、上限没有。
 3. 单文件 ≤300 行；已有文件 >200 行先拆再加功能。
 4. 默认只读。写路径必须 `--apply`，先写 `session.jsonl.zstd.bak.<utc>`。
 5. 禁止把 `~/.dsh/sessions` 原文提交进 git。
