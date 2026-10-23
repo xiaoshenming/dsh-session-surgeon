@@ -73,6 +73,19 @@ ln -sfn ~/.dsh/profiles/desktop/node_modules/dsh-session-surgeon/skills/dsh-sess
         ~/.dsh/skills/dsh-session-surgeon-update
 ```
 
+### If the desktop says the plugin is incompatible
+
+The plugin manager validates `peerDependencies` **before** loading, so a range that excludes your harness leaves the plugin installed but never activated — `pnpm update` will not fix it, and the plugin cannot report the failure itself because `apply()` never runs. Remove it and add it again:
+
+```bash
+# Plugins page: remove, then add github:xiaoshenming/dsh-session-surgeon#main
+cd ~/.dsh/profiles/desktop
+pnpm remove dsh-session-surgeon
+pnpm add "github:xiaoshenming/dsh-session-surgeon#main"
+```
+
+If that still resolves an old version, pin the commit: `pnpm add "github:xiaoshenming/dsh-session-surgeon#<sha>"`.
+
 ## Also: repair unloadable sessions
 
 Real crash families from official Discussions:
