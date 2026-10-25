@@ -7,6 +7,7 @@ import { applyRepair } from "../src/repair.mjs";
 import { applyCompact } from "../src/compact.mjs";
 import { exportSession, writeExport } from "../src/export.mjs";
 import { formatCompactText, formatIndexText, formatInspectText, formatRepairText, formatScanText } from "../src/format.mjs";
+import { formatVerifyText, verifyRoot } from "../src/verify.mjs";
 
 function usage() {
   console.log(`dsh-session-surgeon — repair DeepSeek Harness sessions that refuse to load
@@ -20,6 +21,7 @@ Usage / 用法:
   dsh-session-surgeon compact <id> [root] --keep-last-turns N [--dry-run|--apply]
   dsh-session-surgeon export <id> [root] [--no-redact] [--out file]
   dsh-session-surgeon index [root] [--format json|text]
+  dsh-session-surgeon verify [root] [--format json|text]  # ask the installed reader
 
 Defaults / 默认: root=$DSH_SESSION_ROOT, else $DSH_HOME/sessions, else ~/.dsh/sessions;
 repair/compact are dry-run / 默认只预览;
@@ -71,6 +73,14 @@ try {
     const root = rest[0] ?? defaultSessionRoot();
     const report = await scanAll(root);
     emit(format, report, formatScanText(report));
+    process.exit(0);
+  }
+
+  if (cmd === "verify") {
+    const format = takeOpt(rest, "--format") ?? "json";
+    const root = rest[0] ?? defaultSessionRoot();
+    const report = await verifyRoot(root);
+    emit(format, report, formatVerifyText(report));
     process.exit(0);
   }
 
