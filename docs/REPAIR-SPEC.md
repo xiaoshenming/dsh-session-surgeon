@@ -1,6 +1,6 @@
 # 修复规格（对齐官方 loader）
 
-目标：`repair --apply` 之后的文件，必须能被**本机已安装**的 `@deepseek-ai/dsh-session-persistence-jsonl`（现为 0.1.7-rc.2；桌面端 0.2.0-rc.2 同一代际，格式仍是 v4；v0–v4 代际同一套合同）的 `load()` 接受，并且重放后 turn/step/tool 闭合。
+目标：`repair --apply` 之后的文件，必须能被**本机已安装**的 `@deepseek-ai/dsh-session-persistence-jsonl`（本仓库 devDependency 是 0.1.7-rc.2；桌面端发布的 0.2.x 线最新为 **0.2.2-rc.1**，`SESSION_FORMAT_VERSION` 仍是 **4**，本文引用的 12 条闸门语句在其中全部仍在 —— 但 0.2.x 各版之间**不再逐字节相同**，引用行号前先自己核一遍；v0–v4 代际同一套合同）的 `load()` 接受，并且重放后 turn/step/tool 闭合。
 
 官方只修 torn tail。下面每一条都是「官方拒载、我们才动手」的合同。
 
